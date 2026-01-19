@@ -15,11 +15,11 @@
 """Utility functions for detecting beating signals."""
 
 import logging
+import common_utils
+import control_point_extraction
 import numpy as np
 from scipy import fft
 from scipy import signal
-from . import common_utils
-from . import control_point_extraction
 
 sosfiltfilt = signal.sosfiltfilt
 hilbert = signal.hilbert

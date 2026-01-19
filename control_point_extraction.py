@@ -18,10 +18,9 @@ import copy
 import logging
 import math
 
+import common_utils
 import numpy as np
 from scipy import interpolate
-
-from . import common_utils
 
 
 interp1d = interpolate.interp1d

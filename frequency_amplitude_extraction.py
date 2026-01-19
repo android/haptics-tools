@@ -17,11 +17,10 @@
 import copy
 import logging
 
+import common_utils
 import numpy as np
 import pandas as pd
 from scipy import signal
-
-from . import common_utils
 
 
 def vib_data_preprocess(
