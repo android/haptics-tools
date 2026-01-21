@@ -81,7 +81,18 @@ control points are tuples of (`frequency`, `amplitude`, `duration`).
     `amplitude` as normally designers treat PCM amplitude as intensity instead
     of driving voltage during their designing.
 
-#### Beating detection
+#### Basic Flags
+
+We expose the following flags for basic usage.
+
+*   `haptic_type` specifies whether to output BasicPWLE (when
+    `--haptic_type=basic_pwle_haptic`) or AdvancedPWLE (when
+    `--haptic_type=advanced_pwle_haptic`). Defaults to `basic_pwle_haptic`.
+
+*   `freq_profile` is a tuple of (`min_f`, `res_f`, `max_f`). Defaults to `(50,
+    136, 174)`, if the target device's frequency profile is unknown.
+
+### Beating detection
 
 *   Beat frequency in [`1 Hz`, `6 Hz`]: won’t be detected as beating (FFT is
     smoothed for detection robustness), will be converted using the main
@@ -94,7 +105,7 @@ control points are tuples of (`frequency`, `amplitude`, `duration`).
     together since it exceeds the min duration between points in PWLE
     definition.
 
-#### Primitive detection
+### Primitive detection
 
 *   If a primitive is detected, its start and end will be calculated. PCM data
     within the primitive’s time duration will be silenced before PWLE control
@@ -108,17 +119,10 @@ from continuous waveforms. Basically primitives among silence periods. It
 currently does not support the detection of primitives overlapped with
 continuous waveforms.
 
-### Flags
+### Advanced Flags
 
 We expose the following flags for advanced users to tweak the algorithm's
 behavior:
-
-*   `haptic_type` specifies whether to output BasicPWLE (when
-    `--haptic_type=basic_pwle_haptic`) or AdvancedPWLE (when
-    `--haptic_type=advanced_pwle_haptic`). Defaults to `basic_pwle_haptic`.
-
-*   `freq_profile` is a tuple of (`min_f`, `res_f`, `max_f`). Defaults to `(50,
-    136, 174)`, if the target device's frequency profile is unknown.
 
 *   `jnd_multiple` stands for
     [just-noticeable difference](https://en.wikipedia.org/wiki/Just-noticeable_difference)'s
