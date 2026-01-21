@@ -2,8 +2,6 @@ name: Deploy PCM to PWLE Executables
 
 on:
   push:
-    branches:
-      - main # Trigger on pushes to the main branch
     tags:
       - 'v*' # Trigger on version tags
 
