@@ -49,10 +49,6 @@ Add `--loglevel` if you want to dump and inspect internal logs:
 $ pcm_to_pwle wav_files/v-10-28-7-36.wav test_pwle3.json --loglevel=INFO
 ```
 
-### Algorithm
-
-![Algorithm](docs/images/overview.png){width="800"}
-
 #### Input
 The input of the tool is a raw PCM. Currently, we only support
 [WAV](https://en.wikipedia.org/wiki/WAV) file (assuming haptics data stored in
