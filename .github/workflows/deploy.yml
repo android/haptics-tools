@@ -50,7 +50,6 @@ jobs:
         name: binary-${{ matrix.os }}
         path: dist/pcm_to_pwle-*
 
-  # TODO: http://go/oss-exit-gate
   release:
     name: Create GitHub Release
     needs: build # Wait for all builds to complete
