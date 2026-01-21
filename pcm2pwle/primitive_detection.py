@@ -14,8 +14,8 @@
 
 """Utility functions for primitive detection and manipulation."""
 
-import common_utils
 import numpy as np
+from pcm2pwle import common_utils
 
 
 def detect_primitives(

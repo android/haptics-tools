@@ -1,6 +1,6 @@
 # PCM to PWLE Conversion Tool
 
-[![Latest Release](https://img.shields.io/github/v/release/android/haptics-tools)](https://github.com/android/haptics-tools/releases/latest)
+[![Apache License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 ### Downloads
 You can download the latest pre-compiled executables for your platform from the [Releases](https://github.com/android/haptics-tools/releases/latest) page:

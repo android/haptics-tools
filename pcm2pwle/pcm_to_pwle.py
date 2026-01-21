@@ -20,7 +20,6 @@ import copy
 import json
 import logging
 import os
-import sys
 import time
 from typing import Any, Dict
 
@@ -28,11 +27,11 @@ import numpy as np
 from scipy.io import wavfile
 import soundfile as sf
 
-import beating_detection as bd
-import common_utils
-import control_point_extraction as cpe
-import frequency_amplitude_extraction as fae
-import primitive_detection as pd
+from pcm2pwle import beating_detection as bd
+from pcm2pwle import common_utils
+from pcm2pwle import control_point_extraction as cpe
+from pcm2pwle import frequency_amplitude_extraction as fae
+from pcm2pwle import primitive_detection as pd
 
 
 def run_pcm_to_pwle_conversion(
