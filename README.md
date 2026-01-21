@@ -1,5 +1,15 @@
 # PCM to PWLE Conversion Tool
 
+### Downloads
+You can download the latest pre-compiled executables for your platform from the [Releases](https://github.com/android/haptics-tools/releases/latest) page:
+
+| Platform | Download |
+| :--- | :--- |
+| **Linux** | [Download for Linux](https://github.com/android/haptics-tools/releases/latest/download/pcm_to_pwle-ubuntu-latest) |
+| **Windows** | [Download for Windows](https://github.com/android/haptics-tools/releases/latest/download/pcm_to_pwle-windows-latest.exe) |
+| **macOS** | [Download for macOS](https://github.com/android/haptics-tools/releases/latest/download/pcm_to_pwle-macos-latest) |
+
+
 ### Background
 
 PCM (Pulse-Code Modulation) is a low-level digital representation haptic

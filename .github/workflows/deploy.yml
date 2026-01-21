@@ -2,15 +2,20 @@ name: Deploy PCM to PWLE Executables
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main # Trigger on pushes to the main branch
+    tags:
+      - 'v*' # Trigger on version tags
+
+permissions:
+  contents: write # Required to create the release and upload assets
 
 jobs:
   build:
-    name: Build and Deploy on ${{ matrix.os }}
+    name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # When adding another OS, also add to copybara's github_check_runs.
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
@@ -29,8 +34,40 @@ jobs:
     - name: Run PyInstaller
       run: pyinstaller --onefile pcm_to_pwle.py
 
-    - name: Upload Artifact
+    - name: Prepare Binary
+      shell: bash
+      run: |
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          mv dist/pcm_to_pwle.exe dist/pcm_to_pwle-${{ matrix.os }}.exe
+        else
+          chmod +x dist/pcm_to_pwle
+          mv dist/pcm_to_pwle dist/pcm_to_pwle-${{ matrix.os }}
+        fi
+
+    - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: pcm_to_pwle_${{ matrix.os }}
-        path: dist/
+        name: binary-${{ matrix.os }}
+        path: dist/pcm_to_pwle-*
+
+  # TODO: http://go/oss-exit-gate
+  release:
+    name: Create GitHub Release
+    needs: build # Wait for all builds to complete
+    runs-on: ubuntu-latest
+    # ONLY run this job if the trigger was a tag
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+    - name: Download All Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: binary-*
+        merge-multiple: true
+        path: release-assets
+
+    - name: Create Release and Upload Assets
+      uses: softprops/action-gh-release@v2
+      with:
+        files: release-assets/pcm_to_pwle-*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
