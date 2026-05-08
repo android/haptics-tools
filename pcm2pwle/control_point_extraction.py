@@ -131,76 +131,128 @@ def _remove_control_points(
     current_point_rdp: common_utils.ControlPoint,
     last_kept_point: common_utils.ControlPoint,
     next_rdp_point: common_utils.ControlPoint,
-    perceiption_jnd: float,
-    min_duration_ms: float,
+    pwle_type: str,
 ) -> bool:
   """Removes control points if they are perceived to be the same as its neighbor points."""
-  if current_point_rdp.amplitude is not None:
-    # data has only amplitude, no frequency
-    if current_point_rdp.frequency is None:
+  if pwle_type == "advanced_pwle":
+
+    if current_point_rdp.amplitude is not None:
+      # data has only amplitude, no frequency
+      if current_point_rdp.frequency is None:
+        cur_amp = current_point_rdp.amplitude
+        last_amp = last_kept_point.amplitude
+        next_amp = next_rdp_point.amplitude
+        # if perceived similar to both previous and next points, then remove
+        if _is_within_jnd_db(
+            cur_amp, last_amp, jnd_db=common_utils.AMPLITUDE_FREQUENCY_JND, c=20
+        ) and _is_within_jnd_db(
+            cur_amp, next_amp, jnd_db=common_utils.AMPLITUDE_FREQUENCY_JND, c=20
+        ):
+          return True
+        # if perceived similar to previous point and also really close to the
+        # previous point, then remove
+        if (
+            _is_within_jnd_db(
+                cur_amp,
+                last_amp,
+                jnd_db=common_utils.AMPLITUDE_FREQUENCY_JND,
+                c=20,
+            )
+            and current_point_rdp.time - last_kept_point.time
+            <= common_utils.MIN_DURATION / 2
+        ):
+          return True
+        # else keep
+        return False
+
+      # data has both amplitude and frequency
+      else:
+        cur_p_int = common_utils.perceived_intensity(
+            current_point_rdp.amplitude, current_point_rdp.frequency
+        )
+        last_p_int = common_utils.perceived_intensity(
+            last_kept_point.amplitude, last_kept_point.frequency
+        )
+        next_p_int = common_utils.perceived_intensity(
+            next_rdp_point.amplitude, next_rdp_point.frequency
+        )
+        # if perceived similar to both previous and next points, then remove
+        if _is_within_jnd_db(
+            cur_p_int, last_p_int, jnd_db=common_utils.INTENSITY_JND, c=10
+        ) and _is_within_jnd_db(
+            cur_p_int, next_p_int, jnd_db=common_utils.INTENSITY_JND, c=10
+        ):
+          return True
+        # if perceived similar to previous point and also really close to the
+        # previous point, then remove
+        if (
+            _is_within_jnd_db(
+                cur_p_int, last_p_int, jnd_db=common_utils.INTENSITY_JND, c=10
+            )
+            and current_point_rdp.time - last_kept_point.time
+            <= common_utils.MIN_DURATION / 2
+        ):
+          return True
+        # else keep
+        return False
+
+    else:
+      raise ValueError("Amplitude is required for input rdp_points.")
+
+  elif pwle_type == "basic_pwle":
+
+    if current_point_rdp.amplitude is not None:
       cur_amp = current_point_rdp.amplitude
       last_amp = last_kept_point.amplitude
       next_amp = next_rdp_point.amplitude
-      # if perceived similar to both previous and next points, then remove
-      if (_is_within_jnd_db(cur_amp, last_amp, perceiption_jnd, c=20) and
-          _is_within_jnd_db(cur_amp, next_amp, perceiption_jnd, c=20)):
+
+      # no matter rdp point has frequency or not, directly use amplitude as it
+      # is intensity for basicPWLE if perceived similar to both previous and
+      # next points, then remove
+      if _is_within_jnd_db(
+          cur_amp, last_amp, jnd_db=common_utils.INTENSITY_JND, c=10
+      ) and _is_within_jnd_db(
+          cur_amp, next_amp, jnd_db=common_utils.INTENSITY_JND, c=10
+      ):
         return True
       # if perceived similar to previous point and also really close to the
       # previous point, then remove
-      if (_is_within_jnd_db(cur_amp, last_amp, perceiption_jnd, c=20) and
-          current_point_rdp.time - last_kept_point.time <= min_duration_ms / 2):
+      if (
+          _is_within_jnd_db(
+              cur_amp, last_amp, jnd_db=common_utils.INTENSITY_JND, c=10
+          )
+          and current_point_rdp.time - last_kept_point.time
+          <= common_utils.MIN_DURATION / 2
+      ):
         return True
       # else keep
       return False
 
-    # data has both amplitude and frequency
     else:
-      cur_p_int = common_utils.perceived_intensity(
-          current_point_rdp.amplitude, current_point_rdp.frequency
-      )
-      last_p_int = common_utils.perceived_intensity(
-          last_kept_point.amplitude, last_kept_point.frequency
-      )
-      next_p_int = common_utils.perceived_intensity(
-          next_rdp_point.amplitude, next_rdp_point.frequency
-      )
-      # if perceived similar to both previous and next points, then remove
-      if (_is_within_jnd_db(cur_p_int, last_p_int, perceiption_jnd, c=10) and
-          _is_within_jnd_db(cur_p_int, next_p_int, perceiption_jnd, c=10)):
-        return True
-      # if perceived similar to previous point and also really close to the
-      # previous point, then remove
-      if (_is_within_jnd_db(cur_p_int, last_p_int, perceiption_jnd, c=10) and
-          current_point_rdp.time - last_kept_point.time <= min_duration_ms / 2):
-        return True
-      # else keep
-      return False
+      raise ValueError("Amplitude is required for input rdp_points.")
 
   else:
-    raise ValueError("Amplitude is required for input rdp_points.")
+    raise ValueError("Invalid PWLE type: ", pwle_type)
 
 
 def rdp_with_min_distance(
     rdp_points: list[common_utils.ControlPoint],
-    min_duration_ms: float,
-    perceiption_jnd: float,
-):
+    pwle_type: str):
   """Simplify the extracted Ramer-Douglas-Peucker points.
 
-  1. minimum duration between two adjucent points is min_duration_ms (following
-  PWLE rule)
+  1. minimum duration between two adjucent points is MIN_DURATION (following
+     PWLE rule)
   2. Remove redundant points if they perceived to be the indifferentiable
 
   Args:
     rdp_points: A list of ControlPoint.
-    min_duration_ms: The minimum duration between two adjacent points.
-    perceiption_jnd: The perception JND in dB.
+    pwle_type: The type of PWLE. Either 'advanced_pwle' or 'basic_pwle'.
 
   Returns:
     A list of ControlPoint.
   """
 
-  if min_duration_ms <= 0:
+  if common_utils.MIN_DURATION <= 0:
     return rdp_points
 
   final_rdp_points = [rdp_points[0]]
@@ -210,7 +262,7 @@ def rdp_with_min_distance(
 
     # Check if the current RDP point is too close to the last kept point.
     duration_cur_to_last_kept = current_point_rdp.time - last_kept_point.time
-    if duration_cur_to_last_kept < min_duration_ms - 1e-6:
+    if duration_cur_to_last_kept < common_utils.MIN_DURATION - 1e-6:
 
       if i + 1 < len(rdp_points):
         next_rdp_point = rdp_points[i+1]
@@ -218,12 +270,10 @@ def rdp_with_min_distance(
             current_point_rdp,
             last_kept_point,
             next_rdp_point,
-            perceiption_jnd,
-            min_duration_ms,
-        )
+            pwle_type)
 
         if not remove_point:
-          new_x_current = last_kept_point.time + min_duration_ms
+          new_x_current = last_kept_point.time + common_utils.MIN_DURATION
           modified_point = copy.deepcopy(current_point_rdp)
           modified_point.time = new_x_current
 
@@ -244,8 +294,13 @@ def rdp_with_min_distance(
       final_rdp_points[-1], rdp_points[-1]
   ):
     final_rdp_points.append(rdp_points[-1])
-    if final_rdp_points[-1].time - final_rdp_points[-2].time < min_duration_ms:
-      final_rdp_points[-1].time = final_rdp_points[-2].time + min_duration_ms
+    if (
+        final_rdp_points[-1].time - final_rdp_points[-2].time
+        < common_utils.MIN_DURATION
+    ):
+      final_rdp_points[-1].time = (
+          final_rdp_points[-2].time + common_utils.MIN_DURATION
+      )
 
   return final_rdp_points
 
@@ -255,8 +310,7 @@ def _combine_amp_freq_points_selective(
     amp_fitted: np.ndarray,
     freq_points: list[common_utils.ControlPoint],
     freq_fitted: np.ndarray,
-    amp_frequency_jnd: float,
-    intensity_jnd: float,
+    pwle_type: str,
 ) -> list[common_utils.ControlPoint]:
   """Combines amplitude and frequency points.
 
@@ -268,8 +322,7 @@ def _combine_amp_freq_points_selective(
     amp_fitted: The fitted amplitude envelope.
     freq_points: A list of frequency points.
     freq_fitted: The fitted frequency envelope.
-    amp_frequency_jnd: The JND for amplitude and frequency.
-    intensity_jnd: The JND for intensity.
+    pwle_type: The type of PWLE. Either 'advanced_pwle' or 'basic_pwle'.
 
   Returns:
     A list of combined points.
@@ -314,9 +367,9 @@ def _combine_amp_freq_points_selective(
     # if the frequency of the current point is perceived different from either
     # its previous or next point, consider add
     if not _is_within_jnd_db(
-        cur_freq, next_freq, jnd_db=amp_frequency_jnd, c=20
+        cur_freq, next_freq, jnd_db=common_utils.AMPLITUDE_FREQUENCY_JND, c=20
     ) or not _is_within_jnd_db(
-        cur_freq, prev_freq, jnd_db=amp_frequency_jnd, c=20
+        cur_freq, prev_freq, jnd_db=common_utils.AMPLITUDE_FREQUENCY_JND, c=20
     ):
 
       kept_points_before = [
@@ -332,10 +385,16 @@ def _combine_amp_freq_points_selective(
 
         cur_amp = np.max([0, amp_interp(current_freq_point.time)])
         prev_kept_freq = np.max([0, freq_interp(prev_kept_point.time)])
-        cur_freq_p_int = common_utils.perceived_intensity(cur_amp, cur_freq)
-        prev_kept_p_int = common_utils.perceived_intensity(
-            prev_kept_point.amplitude, prev_kept_freq
-        )
+        if pwle_type == "advanced_pwle":
+          cur_freq_p_int = common_utils.perceived_intensity(cur_amp, cur_freq)
+          prev_kept_p_int = common_utils.perceived_intensity(
+              prev_kept_point.amplitude, prev_kept_freq
+          )
+        elif pwle_type == "basic_pwle":
+          cur_freq_p_int = cur_amp
+          prev_kept_p_int = prev_kept_point.amplitude
+        else:
+          raise ValueError("Invalid PWLE type: ", pwle_type)
 
         # if perceived intensity is similar to its previous kept point and also
         # really close to that point, do not add in this case, if its perceived
@@ -345,19 +404,19 @@ def _combine_amp_freq_points_selective(
             _is_within_jnd_db(
                 cur_freq_p_int,
                 prev_kept_p_int,
-                jnd_db=intensity_jnd,
+                jnd_db=common_utils.INTENSITY_JND,
                 c=10,
             )
             and _is_within_jnd_db(
                 cur_freq,
                 next_freq,
-                jnd_db=amp_frequency_jnd * 2,
+                jnd_db=common_utils.AMPLITUDE_FREQUENCY_JND * 2,
                 c=20,
             )
             and _is_within_jnd_db(
                 cur_freq,
                 prev_freq,
-                jnd_db=amp_frequency_jnd * 2,
+                jnd_db=common_utils.AMPLITUDE_FREQUENCY_JND * 2,
                 c=20,
             )
             and 0
@@ -417,8 +476,8 @@ def extract_control_points(
     amp_envelope: np.ndarray,
     freq_envelope: np.ndarray,
     rate: int,
-    error_threshold: float,
-    jnd_multiple: float,
+    pwle_type: str,
+    error_threshold: float = 0.01,
 ) -> list[common_utils.ControlPoint]:
   """Extracts control points from the amplitude and frequency envelopes.
 
@@ -426,8 +485,8 @@ def extract_control_points(
     amp_envelope: Amplitude envelope of the signal.
     freq_envelope: Instantaneous frequency envelope of the signal.
     rate: Sampling rate of the signal.
+    pwle_type: The type of PWLE. Either 'advanced_pwle' or 'basic_pwle'.
     error_threshold: The error threshold for Ramer-Douglas-Peucker algorithm.
-    jnd_multiple: The JND multiple for the control points.
 
   Returns:
     A list of ControlPoint.
@@ -447,28 +506,21 @@ def extract_control_points(
       point_type=common_utils.PointType.FREQUENCY,
   )
 
-  # JND value default to 1dB * multiplier for vibration intensity and
-  # 1.5dB * multiplier for vibration amplitude and frequency
-  amp_points = rdp_with_min_distance(
-      all_amp_points,
-      min_duration_ms=common_utils.MIN_DURATION,
-      perceiption_jnd=1.5 * jnd_multiple,
-  )
+  amp_points = rdp_with_min_distance(all_amp_points, pwle_type)
 
   combined_points = _combine_amp_freq_points_selective(
       amp_points,
       amp_fitted_downsampled,
       all_freq_points,
       freq_fitted_downsampled,
-      amp_frequency_jnd=1.5 * jnd_multiple,
-      intensity_jnd=1.0 * jnd_multiple,
-  )
+      pwle_type)
 
-  control_points = rdp_with_min_distance(
-      combined_points,
-      min_duration_ms=common_utils.MIN_DURATION,
-      perceiption_jnd=1.0 * jnd_multiple,
-  )
+  # This step can be skipped since frequency point will be added only when
+  # duration between its previous and next kept points > MIN_DURATION * 2
+  # If the threshold is smaller than MIN_DURATION * 2, this step is necessary
+  # control_points = rdp_with_min_distance(combined_points, pwle_type)
+
+  control_points = combined_points
 
   control_points = common_utils.zero_amplitude_at_zero_frequency(
       control_points, freq_fitted_downsampled

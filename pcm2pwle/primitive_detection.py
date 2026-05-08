@@ -23,8 +23,8 @@ def detect_primitives(
     freq_envelope: np.ndarray,
     rate: int,
     pulse_to_neighbor_ratio: float = 5,
-    amp_ratio_threshold: float = 0.1,
-    primitive_freq_threshold: float = 50,
+    amp_ratio_threshold: float = 0.05,
+    primitive_freq_threshold: float = 100,
     min_neighbor_ms: float = 10,
 ) -> list[tuple[float, float]]:
   """Detects pulses within a signal using the signal's amplitude and frequency envelopes as inputs.

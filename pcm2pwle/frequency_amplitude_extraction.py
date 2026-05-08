@@ -80,7 +80,9 @@ def _calculate_freq_env(
 
   logging.info('rm_outliers: kept frequency range: 0 %s', upper_bound)
   freq_envelope_raw[freq_envelope_raw > upper_bound] = np.nan
-  freq_envelope_raw = pd.Series(freq_envelope_raw).interpolate().values
+  freq_envelope_raw = pd.Series(freq_envelope_raw).interpolate().to_numpy(
+      copy=True
+  )
   freq_envelope_raw[np.isnan(freq_envelope_raw)] = 0
 
   sos = signal.butter(

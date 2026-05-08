@@ -18,6 +18,7 @@ import dataclasses
 import enum
 import math
 from typing import Any, Dict, Optional, Sequence
+
 import numpy as np
 from scipy import signal
 
@@ -27,6 +28,10 @@ medfilt = signal.medfilt
 
 MIN_DURATION = 20
 JND_MULTIPLE = MIN_DURATION / 10
+# JND value default to 1dB * multiplier for vibration intensity and
+# 1.5dB * multiplier for vibration amplitude and frequency
+AMPLITUDE_FREQUENCY_JND = 1.5 * JND_MULTIPLE
+INTENSITY_JND = 1.0 * JND_MULTIPLE
 AMP_LOWER_LIMIT = 0
 AMP_UPPER_LIMIT = 1
 
@@ -375,18 +380,16 @@ def reject_invalid_waveform(
 
 
 def reject_invalid_beating_waveform(
-    beating_freq: float, pwle_min_duration: int
-) -> bool:
+    beating_freq: float) -> bool:
   """Reject invalid beating waveform.
 
   Args:
     beating_freq: The frequency of the beating.
-    pwle_min_duration: The minimum duration of the PWLE point.
 
   Returns:
     True if the waveform is invalid, False otherwise.
   """
-  rejection_freq = 1000 / (2 * pwle_min_duration)
+  rejection_freq = 1000 / (2 * MIN_DURATION)
   if beating_freq > rejection_freq:
     print(
         f'WARNING: beating_freq {beating_freq} > {rejection_freq}'

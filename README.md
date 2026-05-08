@@ -42,7 +42,7 @@ $ pcm_to_pwle wav_files/v-10-23-1-21.wav test_pwle1.json
 ```
 
 ```
-$ pcm_to_pwle --haptic_type=advanced_pwle_haptic ogg_files/bumps.ogg test_pwle2.json
+$ pcm_to_pwle --pwle_type=advanced_pwle ogg_files/bumps.ogg test_pwle2.json
 ```
 
 Add `--loglevel` if you want to dump and inspect internal logs:
@@ -87,9 +87,9 @@ control points are tuples of (`frequency`, `amplitude`, `duration`).
 
 We expose the following flags for basic usage.
 
-*   `haptic_type` specifies whether to output BasicPWLE (when
-    `--haptic_type=basic_pwle_haptic`) or AdvancedPWLE (when
-    `--haptic_type=advanced_pwle_haptic`). Defaults to `basic_pwle_haptic`.
+*   `pwle_type` specifies whether to output BasicPWLE (when
+    `--pwle_type=basic_pwle`) or AdvancedPWLE (when
+    `--pwle_type=advanced_pwle`). Defaults to `basic_pwle`.
 
 *   `freq_profile` is a tuple of (`min_f`, `res_f`, `max_f`). Defaults to `(50,
     136, 174)`, if the target device's frequency profile is unknown.
@@ -125,12 +125,6 @@ continuous waveforms.
 
 We expose the following flags for advanced users to tweak the algorithm's
 behavior:
-
-*   `jnd_multiple` stands for
-    [just-noticeable difference](https://en.wikipedia.org/wiki/Just-noticeable_difference)'s
-    multiplier. It's used in control point extraction. Defaults to `-1.0`, which
-    uses half of the `MIN_DURATION`, the minimum duration for neighboring
-    control points.
 
 *   `error_threshold`, the error threshold for
     [Ramer-Douglas-Peucker](https://en.wikipedia.org/wiki/Ramer%E2%80%93Douglas%E2%80%93Peucker_algorithm)
@@ -182,8 +176,7 @@ carrier waveforms with low frequency have such distortions.
 
 *   If sawtooth/square carrier waveform is used, switch carrier waveform to sine
     wave.
-*   If it is an arbitrary waveform, consider increasing RDP's `error_threshold`
-    and `jnd_multiple`.
+*   If it is an arbitrary waveform, consider increasing RDP's `error_threshold`.
 
 #### Low mean frequency
 

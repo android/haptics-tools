@@ -30,7 +30,7 @@ jobs:
       run: pip install -r requirements.txt
 
     - name: Run PyInstaller
-      run: pyinstaller --onefile pcm2pwle/pcm_to_pwle.py
+      run: pyinstaller --onefile pcm2pwle/__main__.py --name pcm_to_pwle
 
     - name: Prepare Binary
       shell: bash

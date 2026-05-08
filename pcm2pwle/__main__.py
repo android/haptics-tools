@@ -35,7 +35,7 @@ from pcm2pwle import primitive_detection as pd
 
 
 def run_pcm_to_pwle_conversion(
-    pcm_raw: np.ndarray, rate: int, haptic_type: str, args: argparse.Namespace
+    pcm_raw: np.ndarray, rate: int, pwle_type: str, args: argparse.Namespace
 ) -> Sequence[Any]:
   """Runs the PCM to PWLE conversion."""
   # data preprocess & freq/amp envelope extraction
@@ -95,12 +95,6 @@ def run_pcm_to_pwle_conversion(
   beating_freqs = bd.is_beating(pcm_raw, rate)
   logging.info('Time spent on is_beating: %f seconds', time.time() - start_time)
 
-  jnd_multiple = (
-      args.jnd_multiple
-      if args.jnd_multiple >= 0
-      else common_utils.JND_MULTIPLE
-  )
-
   # control point extraction
   start_time = time.time()
   if beating_freqs is not None:
@@ -109,16 +103,15 @@ def run_pcm_to_pwle_conversion(
         freq_envelope,
         beating_freqs,
         rate,
+        pwle_type,
         error_threshold=args.error_threshold,
-        jnd_multiple=jnd_multiple,
     )
   else:
     control_points = cpe.extract_control_points(
         amp_envelope,
         freq_envelope,
         rate,
-        error_threshold=args.error_threshold,
-        jnd_multiple=jnd_multiple,
+        pwle_type,
     )
   logging.info(
       'Time spent on control point extraction: %f seconds',
@@ -127,15 +120,15 @@ def run_pcm_to_pwle_conversion(
 
   # convert to PWLE format
   start_time = time.time()
-  if haptic_type == 'advanced_pwle_haptic':
+  if pwle_type == 'advanced_pwle':
     pwle_points = common_utils.generate_advanced_pwle(control_points)
-  elif haptic_type == 'basic_pwle_haptic':
+  elif pwle_type == 'basic_pwle':
     pwle_points = common_utils.generate_basic_pwle(
         control_points,
         freq_profile=tuple(map(float, args.freq_profile)),
     )
   else:
-    raise ValueError('Invalid haptic type')
+    raise ValueError('Invalid PWLE type')
   logging.info(
       'Time spent on PWLE generation: %f seconds', time.time() - start_time
   )
@@ -158,7 +151,7 @@ def run_pcm_to_pwle_conversion(
 def generate_pwle_json(
     name: str,
     points: Sequence[Any],
-    haptic_type: str,
+    pwle_type: str,
     output_path: str,
     json_version: str = 'v0.1.0',
 ) -> Dict[str, Any]:
@@ -170,7 +163,7 @@ def generate_pwle_json(
   Args:
       name: The name of the PWLE.
       points: A list of PWLE point objects representing the effect elements.
-      haptic_type: The type string for the haptic object.
+      pwle_type: The type string for the haptic object.
       output_path: the JSON string will be written to this file path.
       json_version: The version string for the JSON format.
 
@@ -179,18 +172,18 @@ def generate_pwle_json(
   """
   element_array_dicts = [p.to_dict() for p in points[1:]]
 
-  pwle_name = 'pwle_' + haptic_type.split('_')[0] + '_' + name.replace('-', '_')
+  pwle_name = 'pwle_' + pwle_type.split('_')[0] + '_' + name.replace('-', '_')
   # Build the DTO (Data Transfer Object)
-  if haptic_type == 'advanced_pwle_haptic':
+  if pwle_type == 'advanced_pwle':
     haptic_object_dto = {
-        'type': haptic_type,
+        'type': pwle_type + '_haptic',
         'name': pwle_name,
         'initialFrequency': float(points[1].frequency),
         'elementArray': element_array_dicts,
     }
-  elif haptic_type == 'basic_pwle_haptic':
+  elif pwle_type == 'basic_pwle':
     haptic_object_dto = {
-        'type': haptic_type,
+        'type': pwle_type + '_haptic',
         'name': pwle_name,
         'initialSharpness': float(points[1].sharpness),
         'elementArray': element_array_dicts,
@@ -245,9 +238,9 @@ def main() -> None:
   )
   parser.add_argument('output_file_name', help='Output PWLE JSON file name')
   parser.add_argument(
-      '--haptic_type',
-      default='basic_pwle_haptic',
-      choices=['advanced_pwle_haptic', 'basic_pwle_haptic'],
+      '--pwle_type',
+      default='basic_pwle',
+      choices=['advanced_pwle', 'basic_pwle'],
       help='The type of haptic to generate.',
   )
   parser.add_argument(
@@ -255,15 +248,6 @@ def main() -> None:
       type=float,
       default=0.01,
       help='The error threshold for control point extraction.',
-  )
-  parser.add_argument(
-      '--jnd_multiple',
-      type=float,
-      default=-1.0,
-      help=(
-          'The JND multiple for control point extraction. Use default value'
-          ' when negative.'
-      ),
   )
   parser.add_argument(
       '--pulse_to_neighbor_ratio',
@@ -274,13 +258,13 @@ def main() -> None:
   parser.add_argument(
       '--amp_ratio_threshold',
       type=float,
-      default=0.1,
+      default=0.05,
       help='The amplitude ratio threshold for primitive detection.',
   )
   parser.add_argument(
       '--primitive_freq_threshold',
       type=float,
-      default=50,
+      default=100,
       help='The frequency threshold for primitive detection.',
   )
   parser.add_argument(
@@ -309,14 +293,14 @@ def main() -> None:
   logging.basicConfig(level=args.loglevel)
   pcm_file_name = args.pcm_file_name
   output_file_name = args.output_file_name
-  haptic_type = args.haptic_type
+  pwle_type = args.pwle_type
 
   sample_rate, data = read_pcm_file(pcm_file_name)
-  pwle_points = run_pcm_to_pwle_conversion(data, sample_rate, haptic_type, args)
+  pwle_points = run_pcm_to_pwle_conversion(data, sample_rate, pwle_type, args)
   generate_pwle_json(
       os.path.splitext(os.path.basename(pcm_file_name))[0],
       pwle_points,
-      haptic_type,
+      pwle_type,
       output_file_name,
   )
 

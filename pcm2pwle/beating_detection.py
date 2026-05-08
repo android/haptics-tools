@@ -197,8 +197,8 @@ def extract_beating_control_points(
     freq_envelope: np.ndarray,
     beating_freqs: tuple[float, float],
     rate: int,
+    pwle_type: str,
     error_threshold: float,
-    jnd_multiple: float,
 ) -> list[common_utils.ControlPoint]:
   """Extracts the control points from the amplitude envelope and frequency envelope.
 
@@ -207,8 +207,8 @@ def extract_beating_control_points(
     freq_envelope: Frequency envelope of the signal.
     beating_freqs: The two component frequencies of the beating signal.
     rate: Sampling rate of the signal.
+    pwle_type: The type of PWLE. Either 'advanced_pwle' or 'basic_pwle'.
     error_threshold: The error threshold for Ramer-Douglas-Peucker algorithm.
-    jnd_multiple: The JND multiple for the control points.
 
   Returns:
     A list of ControlPoint.
@@ -230,8 +230,7 @@ def extract_beating_control_points(
   # frequency.
   amp_points = control_point_extraction.rdp_with_min_distance(
       all_amp_points,
-      min_duration_ms=common_utils.MIN_DURATION,
-      perceiption_jnd=1.5 * jnd_multiple,
+      pwle_type=pwle_type,
   )
 
   control_points = []
@@ -254,8 +253,6 @@ def extract_beating_control_points(
   common_utils.reject_invalid_waveform(
       control_points, time_shift_threshold=100, mean_freq_threshold=25
   )
-  common_utils.reject_invalid_beating_waveform(
-      beating_freq, common_utils.MIN_DURATION
-  )
+  common_utils.reject_invalid_beating_waveform(beating_freq)
 
   return control_points
