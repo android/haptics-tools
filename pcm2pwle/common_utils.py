@@ -17,10 +17,15 @@
 import dataclasses
 import enum
 import math
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+from xml.dom import minidom
+import xml.etree.ElementTree as ET
 
 import numpy as np
 from scipy import signal
+from scipy.io import wavfile
+import soundfile as sf
+
 
 Enum = enum.Enum
 decimate = signal.decimate
@@ -34,6 +39,10 @@ AMPLITUDE_FREQUENCY_JND = 1.5 * JND_MULTIPLE
 INTENSITY_JND = 1.0 * JND_MULTIPLE
 AMP_LOWER_LIMIT = 0
 AMP_UPPER_LIMIT = 1
+
+# Frequency profile for basic PWLE mapping.
+# (freq_lower_limit, res_freq, freq_upper_limit)
+PWLE_FREQ_PROFILE = (50.0, 136.0, 174.0)
 
 
 @dataclasses.dataclass
@@ -51,17 +60,6 @@ class AdvancedPWLEPoint:
   frequency: float
   duration: int
 
-  # TODO: Subject to change once we finalized the haptics format.
-  def to_dict(self) -> Dict[str, Any]:
-    return {
-        'frequencyHz': float(self.frequency),
-        'amplitudeFloat': float(self.amplitude),
-        'durationMs': int(self.duration),
-        # 'amplitude': self.amplitude,
-        # 'frequency': self.frequency,
-        # 'duration': self.duration,
-    }
-
 
 @dataclasses.dataclass
 class BasicPWLEPoint:
@@ -78,17 +76,6 @@ class BasicPWLEPoint:
   intensity: float
   sharpness: float
   duration: int
-
-  # TODO: Subject to change once we finalized the haptics format.
-  def to_dict(self) -> Dict[str, Any]:
-    return {
-        # 'intensity': self.intensity,
-        # 'sharpness': self.sharpness,
-        # 'duration': self.duration
-        'intensityFloat': float(self.intensity),
-        'sharpnessFloat': float(self.sharpness),
-        'durationMs': int(self.duration)
-    }
 
 
 class PointType(Enum):
@@ -145,6 +132,167 @@ class ControlPoint:
           f'Unknown point type: {point_type}, must be FREQUENCY, AMPLITUDE, or'
           ' COMBINED'
       )
+
+
+def load_pcm_file(file_path: str) -> Tuple[np.ndarray, int]:
+  """Loads PCM data and sample rate from a wav or ogg file.
+
+  Args:
+    file_path: Path to the raw PCM file.
+
+  Returns:
+    A tuple of (data, sample_rate).
+
+  Raises:
+    ValueError: If the file format is unsupported or the OGG channel count
+      is insufficient.
+  """
+  if file_path.endswith('.wav'):
+    with open(file_path, 'rb') as f:
+      rate, data = wavfile.read(f)
+      # Take the first channel if stereo
+      if data.ndim > 1:
+        data = data[:, 0]
+      return data, rate
+  elif file_path.endswith('.ogg'):
+    with open(file_path, 'rb') as f:
+      data, rate = sf.read(f)
+      # Vibration data stored in the second channel for internal ogg files.
+      if data.ndim != 2 or data.shape[1] < 2:
+        raise ValueError(
+            'OGG file must have at least 2 channels for vibration data.'
+        )
+      data = data[:, 1]
+      return data, rate
+  else:
+    raise ValueError(
+        f'Unsupported file extension in {file_path}. Only .wav and .ogg'
+        ' files are supported.'
+    )
+
+
+def parse_pwle_xml(xml_path: str) -> Tuple[List[Dict[str, Any]], str]:
+  """Parses a PWLE XML file into a list of points."""
+  tree = ET.parse(xml_path)
+  root = tree.getroot()
+
+  # Search for the event element
+  event = root.find('.//event')
+  if event is None:
+    # Try with namespace if defined
+    event = root.find('.//{http://www.w3.org/2001/XMLSchema}event')
+    if event is None:
+      # Fallback to generic namespace search
+      for child in root.iter():
+        if child.tag.endswith('event'):
+          event = child
+          break
+  if event is None:
+    raise ValueError("Invalid XML: missing event element.")
+
+  # Find the envelope type
+  basic_env = None
+  advanced_env = None
+  for child in event:
+    if child.tag.endswith('basicEnvelope'):
+      basic_env = child
+    elif child.tag.endswith('advancedEnvelope'):
+      advanced_env = child
+
+  points = []
+  curr_time = 0
+
+  if advanced_env is not None:
+    pwle_type = 'advanced_pwle'
+    initial_freq = float(advanced_env.get('initialFrequency', 0))
+    points.append({'time': 0, 'amplitude': 0.0, 'frequency': initial_freq})
+
+    for cp in advanced_env:
+      if cp.tag.endswith('controlPoint'):
+        duration = int(cp.get('durationMillis', 0))
+        curr_time += duration
+        points.append({
+            'time': curr_time,
+            'amplitude': float(cp.get('amplitude', 0)),
+            'frequency': float(cp.get('frequencyHz', 0)),
+        })
+  elif basic_env is not None:
+    pwle_type = 'basic_pwle'
+    initial_sharpness = float(basic_env.get('initialSharpness', 0))
+    points.append({
+        'time': 0,
+        'intensity': 0.0,
+        'sharpness': initial_sharpness,
+    })
+
+    for cp in basic_env:
+      if cp.tag.endswith('controlPoint'):
+        duration = int(cp.get('durationMillis', 0))
+        curr_time += duration
+        points.append({
+            'time': curr_time,
+            'intensity': float(cp.get('intensity', 0)),
+            'sharpness': float(cp.get('sharpness', 0)),
+        })
+  else:
+    raise ValueError('Unknown PWLE type in XML')
+
+  return points, pwle_type
+
+
+def generate_pwle_xml(
+    points: Sequence[Any],
+    pwle_type: str,
+    output_path: str,
+    xml_version: str,
+) -> str:
+  """Generates a string structured as the required PWLE XML format.
+
+  Args:
+    points: A list of PWLE point objects representing the effect elements.
+    pwle_type: The type string for the haptic object.
+    output_path: the XML string will be written to this file path.
+    xml_version: The version string for the XML format.
+
+  Returns:
+    A generated XML string.
+  """
+  root = ET.Element('hapticPattern', version=xml_version)
+  effect = ET.SubElement(root, 'hapticEffect')
+  event = ET.SubElement(effect, 'event', startTimeMillis="0")
+
+  if pwle_type == 'advanced_pwle':
+    envelope = ET.SubElement(event, 'advancedEnvelope')
+    envelope.set('initialFrequency', str(float(points[1].frequency)))
+    for p in points[1:]:
+      ET.SubElement(
+          envelope,
+          'controlPoint',
+          amplitude=str(float(p.amplitude)),
+          frequencyHz=str(float(p.frequency)),
+          durationMillis=str(int(p.duration)),
+      )
+  elif pwle_type == 'basic_pwle':
+    envelope = ET.SubElement(event, 'basicEnvelope')
+    envelope.set('initialSharpness', str(float(points[1].sharpness)))
+    for p in points[1:]:
+      ET.SubElement(
+          envelope,
+          'controlPoint',
+          intensity=str(float(p.intensity)),
+          sharpness=str(float(p.sharpness)),
+          durationMillis=str(int(p.duration)),
+      )
+  else:
+    raise ValueError('Invalid haptic type')
+
+  xml_string = minidom.parseString(ET.tostring(root)).toprettyxml(indent="  ")
+
+  with open(output_path, 'w') as f:
+    f.write(xml_string)
+    print(f'Successfully wrote PWLE XML to {output_path}')
+
+  return xml_string
 
 
 def perceived_intensity(amp: float, freq: float) -> float:
@@ -443,9 +591,59 @@ def generate_advanced_pwle(
   return pwle_points
 
 
+def sharpness_to_freq(
+    sharpness: float,
+    freq_profile: tuple[float, float, float] = PWLE_FREQ_PROFILE,
+) -> float:
+  """Maps sharpness back to frequency.
+
+  Args:
+    sharpness: Sharpness value in [0, 1].
+    freq_profile: A tuple of (freq_lower_limit, res_freq, freq_upper_limit).
+
+  Returns:
+    Mapped frequency in Hz.
+  """
+  freq_lower_limit, res_freq, freq_upper_limit = freq_profile
+  if sharpness <= 0.7:
+    return (
+        sharpness / 0.7 * (res_freq - freq_lower_limit) + freq_lower_limit
+    )
+  else:
+    return (
+        (sharpness - 0.7) / 0.3 * (freq_upper_limit - res_freq) + res_freq
+    )
+
+
+def freq_to_sharpness(
+    freq: float,
+    freq_profile: tuple[float, float, float] = PWLE_FREQ_PROFILE,
+) -> float:
+  """Maps frequency to sharpness.
+
+  Args:
+    freq: Frequency value in Hz.
+    freq_profile: A tuple of (freq_lower_limit, res_freq, freq_upper_limit).
+
+  Returns:
+    Mapped sharpness in [0, 1].
+  """
+  freq_lower_limit, res_freq, freq_upper_limit = freq_profile
+
+  if freq < freq_lower_limit:
+    freq = freq_lower_limit
+  if freq > freq_upper_limit:
+    freq = freq_upper_limit
+
+  if freq <= res_freq:
+    return (freq - freq_lower_limit) / (res_freq - freq_lower_limit) * 0.7
+  else:
+    return (freq - res_freq) / (freq_upper_limit - res_freq) * 0.3 + 0.7
+
+
 def generate_basic_pwle(
     control_points: Sequence[ControlPoint],
-    freq_profile: tuple[float, float, float] = (50, 136, 174),
+    freq_profile: tuple[float, float, float] = PWLE_FREQ_PROFILE,
 ) -> Sequence[BasicPWLEPoint]:
   """Generates basic PWLE representation given a sequence of control points.
 
@@ -460,8 +658,6 @@ def generate_basic_pwle(
   max_amp = min(max_amp, AMP_UPPER_LIMIT)
   if max_amp == 0:
     max_amp = AMP_UPPER_LIMIT
-
-  freq_lower_limit, res_freq, freq_upper_limit = freq_profile
 
   pwle_points = []
   for i in range(len(control_points)):
@@ -481,15 +677,7 @@ def generate_basic_pwle(
     ### Frequency
     # Clip frequency to [freq_lower_limit, freq_upper_limit] and then do a
     # linear extrapolation with the resonant frequency being mapped to 0.7.
-    if p_freq < freq_lower_limit:
-      p_freq = freq_lower_limit
-    if p_freq > freq_upper_limit:
-      p_freq = freq_upper_limit
-
-    if p_freq <= res_freq:
-      p_freq = (p_freq - freq_lower_limit) / (res_freq - freq_lower_limit) * 0.7
-    else:
-      p_freq = (p_freq - res_freq) / (freq_upper_limit - res_freq) * 0.3 + 0.7
+    p_sharpness = freq_to_sharpness(p_freq, freq_profile=freq_profile)
 
     ### Duration
     p_duration = 0 if i == 0 else p_time - control_points[i - 1].time
@@ -497,7 +685,7 @@ def generate_basic_pwle(
     pwle_points.append(
         BasicPWLEPoint(
             intensity=p_amp,
-            sharpness=p_freq,
+            sharpness=p_sharpness,
             duration=round(p_duration),
         )
     )

@@ -1,5 +1,9 @@
-numpy
-pandas
-pyinstaller
-scipy
-soundfile
+matplotlib>=3.5.0
+numpy>=1.21.0
+pandas>=1.3.0
+scipy>=1.7.0
+soundfile>=0.10.0
+PyQt6>=6.4.0
+
+# For building standalone executables
+pyinstaller>=5.0.0

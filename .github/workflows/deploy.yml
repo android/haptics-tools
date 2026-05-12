@@ -30,23 +30,28 @@ jobs:
       run: pip install -r requirements.txt
 
     - name: Run PyInstaller
-      run: pyinstaller --onefile pcm2pwle/__main__.py --name pcm_to_pwle
+      run: >
+        pyinstaller --onefile pcm2pwle/__main__.py --name pcm2pwle
+        --hidden-import PyQt6
+        --hidden-import matplotlib.backends.backend_qtagg
+        --hidden-import matplotlib.backends.backend_pdf
+        --hidden-import matplotlib.backends.backend_svg
 
     - name: Prepare Binary
       shell: bash
       run: |
         if [ "${{ runner.os }}" = "Windows" ]; then
-          mv dist/pcm_to_pwle.exe dist/pcm_to_pwle-${{ matrix.os }}.exe
+          mv dist/pcm2pwle.exe dist/pcm2pwle-${{ matrix.os }}.exe
         else
-          chmod +x dist/pcm_to_pwle
-          mv dist/pcm_to_pwle dist/pcm_to_pwle-${{ matrix.os }}
+          chmod +x dist/pcm2pwle
+          mv dist/pcm2pwle dist/pcm2pwle-${{ matrix.os }}
         fi
 
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
       with:
         name: binary-${{ matrix.os }}
-        path: dist/pcm_to_pwle-*
+        path: dist/pcm2pwle-*
 
   release:
     name: Create GitHub Release
@@ -65,6 +70,6 @@ jobs:
     - name: Create Release and Upload Assets
       uses: softprops/action-gh-release@v2
       with:
-        files: release-assets/pcm_to_pwle-*
+        files: release-assets/pcm2pwle-*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
