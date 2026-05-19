@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""A tool to convert PCM file to PWLE format."""
+"""A tool to convert PCM file to Haptics XML format."""
 
 import argparse
 from collections.abc import Sequence
@@ -27,12 +27,12 @@ from pcm2pwle import beating_detection as bd
 from pcm2pwle import common_utils
 from pcm2pwle import control_point_extraction as cpe
 from pcm2pwle import frequency_amplitude_extraction as fae
-from pcm2pwle import primitive_detection as pd
+from pcm2pwle import preset_detection as pd
 
 
-def run_pcm_to_pwle_conversion(
+def run_pcm_to_haptics_conversion(
     pcm_raw: np.ndarray, rate: int, pwle_type: str, args: argparse.Namespace
-) -> Sequence[Any]:
+) -> tuple[Sequence[Any], list[tuple[float, float]]]:
   """Runs the PCM to PWLE conversion."""
   # data preprocess & freq/amp envelope extraction
   start_time = time.time()
@@ -55,26 +55,26 @@ def run_pcm_to_pwle_conversion(
       'Time spent on extract_vib_amp_freq: %f seconds', time.time() - start_time
   )
 
-  # primitive detection
+  # preset detection
   start_time = time.time()
-  detected_primitives = pd.detect_primitives(
+  detected_presets = pd.detect_presets(
       amp_envelope,
       freq_envelope,
       rate,
       pulse_to_neighbor_ratio=args.pulse_to_neighbor_ratio,
       amp_ratio_threshold=args.amp_ratio_threshold,
-      primitive_freq_threshold=args.primitive_freq_threshold,
+      preset_freq_threshold=args.preset_freq_threshold,
   )
   logging.info(
-      'Time spent on detect_primitives: %f seconds', time.time() - start_time
+      'Time spent on detect_presets: %f seconds', time.time() - start_time
   )
-  if detected_primitives:
+  if detected_presets:
     start_time = time.time()
-    pcm_preprocessed = pd.silence_pcm_at_primitives(
-        pcm_preprocessed, detected_primitives, rate
+    pcm_preprocessed = pd.silence_pcm_at_presets(
+        pcm_preprocessed, detected_presets, rate
     )
     logging.info(
-        'Time spent on silence_pcm_at_primitives: %f seconds',
+        'Time spent on silence_pcm_at_presets: %f seconds',
         time.time() - start_time,
     )
     start_time = time.time()
@@ -114,7 +114,7 @@ def run_pcm_to_pwle_conversion(
       time.time() - start_time,
   )
 
-  # convert to PWLE format
+  # convert to Haptics format
   start_time = time.time()
   if pwle_type == 'advanced_pwle':
     pwle_points = common_utils.generate_advanced_pwle(control_points)
@@ -129,19 +129,16 @@ def run_pcm_to_pwle_conversion(
       'Time spent on PWLE generation: %f seconds', time.time() - start_time
   )
 
-  # TODO: Add primitive insert points to the PWLE when
-  # PWLE / primitive composition is ready.
-  # primitive insert point calculation
   start_time = time.time()
-  primitive_insert_points = pd.calculate_primitive_insert_points(
-      pcm_preprocessed_copy, detected_primitives, rate
+  preset_insert_points = pd.calculate_preset_insert_points(
+      pcm_preprocessed_copy, detected_presets, rate
   )
   logging.info(
-      'Time spent on calculate_primitive_insert_points: %f seconds',
+      'Time spent on calculate_preset_insert_points: %f seconds',
       time.time() - start_time,
   )
 
-  return pwle_points
+  return pwle_points, preset_insert_points
 
 
 class _HelpFormatter(
@@ -153,14 +150,14 @@ class _HelpFormatter(
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
   """Adds the convert subcommand to the main parser."""
   description = (
-      'Convert raw haptic PCM data (.wav or .ogg) into the PWLE XML format.\n\n'
-      'This tool analyzes the input haptic waveform and generates a nearly\n'
-      'equivalent Piecewise Linear Envelope (PWLE) representation, which is\n'
-      'then saved to the specified output file.'
+      'Convert raw haptic PCM data (.wav or .ogg) into the Haptics XML'
+      ' format.\n\n'
+      'The tool detects presets and extracts PWLE for continuous'
+      ' effects.'
   )
   parser = subparsers.add_parser(
       'convert',
-      help='Convert PCM to PWLE format.',
+      help='Convert PCM to Haptics XML format.',
       description=description,
       formatter_class=_HelpFormatter,
   )
@@ -168,7 +165,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
       '--pcm', required=True, help='Path to input PCM file (.wav or .ogg)'
   )
   parser.add_argument(
-      '--output', required=True, help='Path to output PWLE XML file'
+      '--output', required=True, help='Path to output Haptics XML file'
   )
   parser.add_argument(
       '--pwle_type',
@@ -186,19 +183,19 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
       '--pulse_to_neighbor_ratio',
       type=float,
       default=5,
-      help='The pulse to neighbor ratio for primitive detection.',
+      help='The pulse to neighbor ratio for preset detection.',
   )
   parser.add_argument(
       '--amp_ratio_threshold',
       type=float,
       default=0.05,
-      help='The amplitude ratio threshold for primitive detection.',
+      help='The amplitude ratio threshold for preset detection.',
   )
   parser.add_argument(
-      '--primitive_freq_threshold',
+      '--preset_freq_threshold',
       type=float,
       default=100,
-      help='The frequency threshold for primitive detection.',
+      help='The frequency threshold for preset detection.',
   )
   parser.add_argument(
       '--freq_profile',
@@ -232,10 +229,13 @@ def run(args: argparse.Namespace) -> None:
   pwle_type = args.pwle_type
 
   data, sample_rate = common_utils.load_pcm_file(pcm_file_name)
-  pwle_points = run_pcm_to_pwle_conversion(data, sample_rate, pwle_type, args)
-  common_utils.generate_pwle_xml(
+  pwle_points, preset_insert_points = run_pcm_to_haptics_conversion(
+      data, sample_rate, pwle_type, args
+  )
+  common_utils.generate_haptics_xml(
       pwle_points,
       pwle_type,
       output_file_name,
       xml_version='2.0',
+      preset_insert_points=preset_insert_points,
   )

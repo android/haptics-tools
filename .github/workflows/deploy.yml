@@ -18,10 +18,10 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.12'
         cache: 'pip'
@@ -37,21 +37,32 @@ jobs:
         --hidden-import matplotlib.backends.backend_pdf
         --hidden-import matplotlib.backends.backend_svg
 
-    - name: Prepare Binary
+    - name: Package Binary
       shell: bash
       run: |
+        cd dist
         if [ "${{ runner.os }}" = "Windows" ]; then
-          mv dist/pcm2pwle.exe dist/pcm2pwle-${{ matrix.os }}.exe
+          # On Windows, create a zip archive
+          7z a pcm2pwle-${{ matrix.os }}.zip pcm2pwle.exe
         else
-          chmod +x dist/pcm2pwle
-          mv dist/pcm2pwle dist/pcm2pwle-${{ matrix.os }}
+          # On Mac/Linux, ensure it is executable, then create a tar.gz
+          chmod +x pcm2pwle
+          tar -czvf pcm2pwle-${{ matrix.os }}.tar.gz pcm2pwle
         fi
 
-    - name: Upload Build Artifact
-      uses: actions/upload-artifact@v4
+    - name: Upload Build Artifact Zip
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v7
       with:
         name: binary-${{ matrix.os }}
-        path: dist/pcm2pwle-*
+        path: dist/*.zip
+
+    - name: Upload Build Artifact Tar
+      if: runner.os != 'Windows'
+      uses: actions/upload-artifact@v7
+      with:
+        name: binary-${{ matrix.os }}
+        path: dist/*.tar.gz
 
   release:
     name: Create GitHub Release
@@ -61,15 +72,17 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     steps:
     - name: Download All Artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: binary-*
         merge-multiple: true
         path: release-assets
 
     - name: Create Release and Upload Assets
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
-        files: release-assets/pcm2pwle-*
+        files: |
+          release-assets/*.zip
+          release-assets/*.tar.gz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -171,99 +171,218 @@ def load_pcm_file(file_path: str) -> Tuple[np.ndarray, int]:
     )
 
 
-def parse_pwle_xml(xml_path: str) -> Tuple[List[Dict[str, Any]], str]:
-  """Parses a PWLE XML file into a list of points."""
+def parse_haptics_xml(
+    xml_path: str,
+) -> Tuple[List[List[Dict[str, Any]]], str, List[Dict[str, Any]]]:
+  """Parses a Haptics XML file into a list of envelopes and presets.
+
+  Args:
+    xml_path: Path to the XML file.
+
+  Returns:
+    A tuple of (envelopes, pwle_type, presets).
+    - envelopes is a list of lists, where each inner list represents the
+      absolute control points of a single, disjoint envelope.
+    - presets is a list of dictionaries representing short preset effects.
+  """
   tree = ET.parse(xml_path)
   root = tree.getroot()
 
-  # Search for the event element
-  event = root.find('.//event')
-  if event is None:
-    # Try with namespace if defined
-    event = root.find('.//{http://www.w3.org/2001/XMLSchema}event')
-    if event is None:
-      # Fallback to generic namespace search
-      for child in root.iter():
-        if child.tag.endswith('event'):
-          event = child
-          break
-  if event is None:
-    raise ValueError("Invalid XML: missing event element.")
+  envelopes = []
+  presets = []
+  pwle_type = None
 
-  # Find the envelope type
-  basic_env = None
-  advanced_env = None
-  for child in event:
-    if child.tag.endswith('basicEnvelope'):
-      basic_env = child
-    elif child.tag.endswith('advancedEnvelope'):
-      advanced_env = child
+  for event in root.iter():
+    if event.tag.endswith('event'):
+      start_time = int(event.get('startTimeMillis', 0))
+      for child in event:
+        if child.tag.endswith('basicEnvelope'):
+          pwle_type = 'basic_pwle'
+          initial_sharpness = float(child.get('initialSharpness', 0))
 
-  points = []
-  curr_time = 0
+          envelope_points = [{
+              'time': start_time,
+              'intensity': 0.0,
+              'sharpness': initial_sharpness,
+          }]
 
-  if advanced_env is not None:
-    pwle_type = 'advanced_pwle'
-    initial_freq = float(advanced_env.get('initialFrequency', 0))
-    points.append({'time': 0, 'amplitude': 0.0, 'frequency': initial_freq})
+          curr_time = start_time
+          for cp in child:
+            if cp.tag.endswith('controlPoint'):
+              duration = int(cp.get('durationMillis', 0))
+              curr_time += duration
+              envelope_points.append({
+                  'time': curr_time,
+                  'intensity': float(cp.get('intensity', 0)),
+                  'sharpness': float(cp.get('sharpness', 0)),
+              })
+          envelopes.append(envelope_points)
 
-    for cp in advanced_env:
-      if cp.tag.endswith('controlPoint'):
-        duration = int(cp.get('durationMillis', 0))
-        curr_time += duration
-        points.append({
-            'time': curr_time,
-            'amplitude': float(cp.get('amplitude', 0)),
-            'frequency': float(cp.get('frequencyHz', 0)),
-        })
-  elif basic_env is not None:
-    pwle_type = 'basic_pwle'
-    initial_sharpness = float(basic_env.get('initialSharpness', 0))
-    points.append({
-        'time': 0,
-        'intensity': 0.0,
-        'sharpness': initial_sharpness,
-    })
+        elif child.tag.endswith('advancedEnvelope'):
+          pwle_type = 'advanced_pwle'
+          initial_freq = float(child.get('initialFrequency', 0))
 
-    for cp in basic_env:
-      if cp.tag.endswith('controlPoint'):
-        duration = int(cp.get('durationMillis', 0))
-        curr_time += duration
-        points.append({
-            'time': curr_time,
-            'intensity': float(cp.get('intensity', 0)),
-            'sharpness': float(cp.get('sharpness', 0)),
-        })
-  else:
-    raise ValueError('Unknown PWLE type in XML')
+          envelope_points = [{
+              'time': start_time,
+              'amplitude': 0.0,
+              'frequency': initial_freq,
+          }]
 
-  return points, pwle_type
+          curr_time = start_time
+          for cp in child:
+            if cp.tag.endswith('controlPoint'):
+              duration = int(cp.get('durationMillis', 0))
+              curr_time += duration
+              envelope_points.append({
+                  'time': curr_time,
+                  'amplitude': float(cp.get('amplitude', 0)),
+                  'frequency': float(cp.get('frequencyHz', 0)),
+              })
+          envelopes.append(envelope_points)
+
+        elif child.tag.endswith('preset'):
+          presets.append({
+              'time': start_time,
+              'presetEnum': child.get('presetEnum'),
+              'intensity': float(child.get('intensity', 1.0)),
+          })
+
+  if pwle_type is None and not presets:
+    raise ValueError(
+        'Invalid XML: missing basicEnvelope, advancedEnvelope, or preset.'
+    )
+
+  # Sort envelopes by the start time of their first point to ensure they
+  # are sequential.
+  envelopes.sort(key=lambda x: x[0]['time'])
+
+  return envelopes, pwle_type, presets
 
 
-def generate_pwle_xml(
+def generate_haptics_xml(
     points: Sequence[Any],
     pwle_type: str,
     output_path: str,
     xml_version: str,
+    preset_insert_points: list[tuple[float, float]] | None = None,
 ) -> str:
-  """Generates a string structured as the required PWLE XML format.
+  """Generates a string structured as the required Haptics XML format.
 
   Args:
     points: A list of PWLE point objects representing the effect elements.
     pwle_type: The type string for the haptic object.
     output_path: the XML string will be written to this file path.
     xml_version: The version string for the XML format.
+    preset_insert_points: optional list of preset insert points.
 
   Returns:
     A generated XML string.
   """
   root = ET.Element('hapticPattern', version=xml_version)
   effect = ET.SubElement(root, 'hapticEffect')
-  event = ET.SubElement(effect, 'event', startTimeMillis="0")
+
+  # Combine PWLE points and preset insert points, sorted by time
+  events = []
+  curr_time = 0
+  for p in points:
+    # First point has duration 0, skip for timing calculation
+    if hasattr(p, 'duration'):
+      curr_time += p.duration
+    events.append({'time': curr_time, 'type': 'pwle', 'data': p})
+
+  if preset_insert_points:
+    for start_time, intensity in preset_insert_points:
+      events.append({
+          'time': start_time,
+          'type': 'preset',
+          'data': {'intensity': intensity},
+      })
+
+  # Sort events by time
+  events.sort(key=lambda x: (x['time'], 0 if x['type'] == 'preset' else 1))
+
+  # Group PWLE points into pieces separated by presets
+  current_pwle_piece = []
+  last_pwle_time = 0
+
+  for event_data in events:
+    if event_data['type'] == 'preset':
+      # If we have a pending PWLE piece, add it as an event
+      if current_pwle_piece:
+        _add_pwle_event(
+            effect, current_pwle_piece, pwle_type, last_pwle_time
+        )
+        current_pwle_piece = []
+
+      # Add the preset event
+      prim_event = ET.SubElement(
+          effect, 'event', startTimeMillis=str(int(event_data['time']))
+      )
+      ET.SubElement(
+          prim_event,
+          'preset',
+          # Use CLICK for detected pulses.
+          presetEnum='CLICK',
+          intensity=str(float(event_data['data']['intensity'])),
+      )
+    else:
+      p = event_data['data']
+      if not current_pwle_piece:
+        last_pwle_time = event_data['time']
+        # If it's the start of a new piece, we need to handle the first point
+        # differently because it has no duration. We'll adjust subsequent
+        # points' durations to be relative to this piece's start.
+        if hasattr(p, 'duration'):
+          # Create a starting point with 0 duration and same values as p
+          if pwle_type == 'advanced_pwle':
+            start_p = AdvancedPWLEPoint(
+                amplitude=p.amplitude,
+                frequency=p.frequency,
+                duration=0,
+            )
+          else:
+            start_p = BasicPWLEPoint(
+                intensity=p.intensity,
+                sharpness=p.sharpness,
+                duration=0,
+            )
+          current_pwle_piece.append(start_p)
+        else:
+          # This is the very first point of the original points list
+          current_pwle_piece.append(p)
+      else:
+        # Add point with its original duration (which is relative to prev point)
+        current_pwle_piece.append(p)
+
+  # Add any remaining PWLE piece
+  if current_pwle_piece:
+    _add_pwle_event(effect, current_pwle_piece, pwle_type, last_pwle_time)
+
+  xml_string = minidom.parseString(ET.tostring(root)).toprettyxml(indent="  ")
+
+  with open(output_path, 'w') as f:
+    f.write(xml_string)
+    print(f'Successfully wrote Haptics XML to {output_path}')
+
+  return xml_string
+
+
+def _add_pwle_event(
+    effect: ET.Element,
+    points: list[Any],
+    pwle_type: str,
+    start_time: float,
+) -> None:
+  """Adds a PWLE event to the effect element."""
+  # Only add if there are more than just the initial point
+  if len(points) <= 1:
+    return
+
+  event = ET.SubElement(effect, 'event', startTimeMillis=str(int(start_time)))
 
   if pwle_type == 'advanced_pwle':
     envelope = ET.SubElement(event, 'advancedEnvelope')
-    envelope.set('initialFrequency', str(float(points[1].frequency)))
+    envelope.set('initialFrequency', str(float(points[0].frequency)))
     for p in points[1:]:
       ET.SubElement(
           envelope,
@@ -274,7 +393,7 @@ def generate_pwle_xml(
       )
   elif pwle_type == 'basic_pwle':
     envelope = ET.SubElement(event, 'basicEnvelope')
-    envelope.set('initialSharpness', str(float(points[1].sharpness)))
+    envelope.set('initialSharpness', str(float(points[0].sharpness)))
     for p in points[1:]:
       ET.SubElement(
           envelope,
@@ -283,16 +402,6 @@ def generate_pwle_xml(
           sharpness=str(float(p.sharpness)),
           durationMillis=str(int(p.duration)),
       )
-  else:
-    raise ValueError('Invalid haptic type')
-
-  xml_string = minidom.parseString(ET.tostring(root)).toprettyxml(indent="  ")
-
-  with open(output_path, 'w') as f:
-    f.write(xml_string)
-    print(f'Successfully wrote PWLE XML to {output_path}')
-
-  return xml_string
 
 
 def perceived_intensity(amp: float, freq: float) -> float:

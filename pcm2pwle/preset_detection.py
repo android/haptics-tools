@@ -12,22 +12,22 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""Utility functions for primitive detection and manipulation."""
+"""Utility functions for preset detection and manipulation."""
 
 import numpy as np
 from pcm2pwle import common_utils
 
 
-def detect_primitives(
+def detect_presets(
     amp_envelope: np.ndarray,
     freq_envelope: np.ndarray,
     rate: int,
     pulse_to_neighbor_ratio: float = 5,
     amp_ratio_threshold: float = 0.05,
-    primitive_freq_threshold: float = 100,
+    preset_freq_threshold: float = 100,
     min_neighbor_ms: float = 10,
 ) -> list[tuple[float, float]]:
-  """Detects pulses within a signal using the signal's amplitude and frequency envelopes as inputs.
+  """Detects pulses within a signal using amplitude and frequency envelopes.
 
   Args:
     amp_envelope: Amplitude envelope of the signal.
@@ -41,7 +41,7 @@ def detect_primitives(
     amp_ratio_threshold: The amplitudes of all points within a detected pulse
       must be higher than this threshold value multiplied by the maximum
       amplitude of the signal. Defaults to 0.1.
-    primitive_freq_threshold: The frequencies of all points within a detected
+    preset_freq_threshold: The frequencies of all points within a detected
       pulse must be higher than this frequency threshold value. Defaults to 50.
     min_neighbor_ms: The duration used to define the left and right neighboring
       regions of a detected pulse. Defaults to 10.
@@ -64,7 +64,7 @@ def detect_primitives(
   pulse_start_index = -1
 
   for i in range(len(amp)):
-    if (amp[i] > amp_threshold) and (freq[i] > primitive_freq_threshold):
+    if (amp[i] > amp_threshold) and (freq[i] > preset_freq_threshold):
       if not in_potential_pulse:
         in_potential_pulse = True
         pulse_start_index = i
@@ -118,25 +118,25 @@ def detect_primitives(
   return detected_pulses
 
 
-def silence_pcm_at_primitives(
-    pcm: np.ndarray, detected_primitives: list[tuple[float, float]], rate: int
+def silence_pcm_at_presets(
+    pcm: np.ndarray, detected_presets: list[tuple[float, float]], rate: int
 ) -> np.ndarray:
-  """Silences the PCM at the detected primitives.
+  """Silences the PCM at the detected presets.
 
   Args:
     pcm: The PCM data.
-    detected_primitives: The detected primitives.
+    detected_presets: The detected presets.
     rate: The sampling rate of the PCM data.
 
   Returns:
-    The modified PCM data with silence at the detected primitives.
+    The modified PCM data with silence at the detected presets.
   """
   modified_pcm = pcm.copy()
 
-  for start_time, end_time in detected_primitives:
+  for start_time, end_time in detected_presets:
     start_sample = int(start_time / 1000 * rate)
-    end_sample = int(end_time /1000 * rate)
-    modified_pcm[start_sample:end_sample + 1] = 0
+    end_sample = int(end_time / 1000 * rate)
+    modified_pcm[start_sample : end_sample + 1] = 0
 
   chunks = common_utils.zero_out_low_amplitude_chunks(
       modified_pcm,
@@ -151,29 +151,29 @@ def silence_pcm_at_primitives(
   return modified_pcm
 
 
-def calculate_primitive_insert_points(
-    pcm: np.ndarray, detected_primitives: list[tuple[float, float]], rate: int
+def calculate_preset_insert_points(
+    pcm: np.ndarray, detected_presets: list[tuple[float, float]], rate: int
 ) -> list[tuple[float, float]]:
-  """Calculates the primitive insert points.
+  """Calculates the preset insert points.
 
   Args:
     pcm: The PCM data.
-    detected_primitives: The detected primitives.
+    detected_presets: The detected presets.
     rate: The sampling rate of the PCM data.
 
   Returns:
-    A list of primitive insert points. Each point is a tuple of (start_time,
+    A list of preset insert points. Each point is a tuple of (start_time,
     end_time) in ms.
   """
 
-  primitive_insert_points = []
+  preset_insert_points = []
 
-  for start_time, end_time in detected_primitives:
+  for start_time, end_time in detected_presets:
     start_sample = int(start_time / 1000 * rate)
     end_sample = int(end_time / 1000 * rate)
     pulse_value = pcm[start_sample : end_sample + 1]
-    primitive_insert_points.append(
+    preset_insert_points.append(
         (start_time, np.max(np.abs(pulse_value)) / np.max(np.abs(pcm)))
     )
 
-  return primitive_insert_points
+  return preset_insert_points
