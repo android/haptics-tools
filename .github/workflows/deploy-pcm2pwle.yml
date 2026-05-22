@@ -1,20 +1,32 @@
-name: Deploy PCM to PWLE Executables
+name: Deploy pcm2pwle Executable
 
 on:
   push:
     tags:
-      - 'v*' # Trigger on version tags
+      - 'pcm2pwle-v*' # Trigger on pcm2pwle version tags
 
 permissions:
   contents: write # Required to create the release and upload assets
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
+    name: Build on ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            extension: ""
+            archive_ext: "tar.gz"
+          - os: windows-latest
+            platform: windows
+            extension: ".exe"
+            archive_ext: "zip"
+          - os: macos-latest
+            platform: macos
+            extension: ""
+            archive_ext: "tar.gz"
 
     steps:
     - name: Checkout Code
@@ -30,46 +42,33 @@ jobs:
       run: pip install -r requirements.txt
 
     - name: Run PyInstaller
-      run: >
-        pyinstaller --onefile pcm2pwle/__main__.py --name pcm2pwle
-        --hidden-import PyQt6
-        --hidden-import matplotlib.backends.backend_qtagg
-        --hidden-import matplotlib.backends.backend_pdf
-        --hidden-import matplotlib.backends.backend_svg
+      run: pyinstaller pcm2pwle.spec
 
     - name: Package Binary
       shell: bash
       run: |
         cd dist
-        if [ "${{ runner.os }}" = "Windows" ]; then
+        if [ "${{ matrix.platform }}" = "windows" ]; then
           # On Windows, create a zip archive
-          7z a pcm2pwle-${{ matrix.os }}.zip pcm2pwle.exe
+          7z a pcm2pwle-${{ matrix.platform }}.zip pcm2pwle${{ matrix.extension }}
         else
           # On Mac/Linux, ensure it is executable, then create a tar.gz
-          chmod +x pcm2pwle
-          tar -czvf pcm2pwle-${{ matrix.os }}.tar.gz pcm2pwle
+          chmod +x pcm2pwle${{ matrix.extension }}
+          tar -czvf pcm2pwle-${{ matrix.platform }}.tar.gz pcm2pwle${{ matrix.extension }}
         fi
 
-    - name: Upload Build Artifact Zip
-      if: runner.os == 'Windows'
+    - name: Upload Build Artifact
       uses: actions/upload-artifact@v7
       with:
-        name: binary-${{ matrix.os }}
-        path: dist/*.zip
-
-    - name: Upload Build Artifact Tar
-      if: runner.os != 'Windows'
-      uses: actions/upload-artifact@v7
-      with:
-        name: binary-${{ matrix.os }}
-        path: dist/*.tar.gz
+        name: binary-${{ matrix.platform }}
+        path: dist/*.${{ matrix.archive_ext }}
 
   release:
     name: Create GitHub Release
     needs: build # Wait for all builds to complete
     runs-on: ubuntu-latest
     # ONLY run this job if the trigger was a tag
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/pcm2pwle-v')
     steps:
     - name: Download All Artifacts
       uses: actions/download-artifact@v8
