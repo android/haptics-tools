@@ -203,6 +203,14 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
 
 def run(args: argparse.Namespace) -> None:
   """Executes the visualizer logic."""
+  if args.output:
+    try:
+      import matplotlib
+
+      matplotlib.use('Agg')
+    except ImportError:
+      pass
+
   import matplotlib.pyplot as plt
 
   if not args.pcm and not args.xml:
@@ -415,9 +423,12 @@ def run(args: argparse.Namespace) -> None:
   if args.output:
     plt.savefig(args.output)
     print(f'Plot saved to {args.output}')
+    plt.close(fig)
+    plt.close('all')
   else:
     try:
       plt.show()
+      plt.close('all')
     except Exception as e:
       print(f'Could not show plot: {e}. Use --output to save to a file.')
 
