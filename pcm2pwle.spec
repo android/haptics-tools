@@ -3,8 +3,15 @@
 import sys
 from pathlib import Path
 
-# Add directory containing spec file to python path so common package can be resolved
-sys.path.insert(0, globals().get('SPECPATH', str(Path(__file__).parent.resolve())))
+# Add spec directory to path (supports pyinstaller execution and direct python run)
+if 'SPECPATH' in globals():
+  # PyInstaller sets SPECPATH globally, avoiding NameError on __file__ in some runtimes
+  spec_path = SPECPATH
+else:
+  # Fallback for manual python run, where standard __file__ is guaranteed
+  spec_path = str(Path(__file__).parent.resolve())
+
+sys.path.insert(0, spec_path)
 
 from common.pyinstaller_utils import exclude_glib_gio
 
