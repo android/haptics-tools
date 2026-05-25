@@ -210,6 +210,13 @@ def run(args: argparse.Namespace) -> None:
       matplotlib.use('Agg')
     except ImportError:
       pass
+  else:
+    try:
+      import matplotlib
+
+      matplotlib.use('QtAgg')
+    except ImportError:
+      pass
 
   import matplotlib.pyplot as plt
 
