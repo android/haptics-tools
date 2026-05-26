@@ -160,16 +160,12 @@ class _HelpFormatter(
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
   """Adds the visualize subcommand to the main parser."""
   description = (
-      'Visualize PCM and XML data.\n\n'
-      'Behavior based on provided arguments:\n'
-      '  --pcm only          : Plots the raw PCM data interactively.\n'
-      '  --xml only          : Plots Haptics XML & reconstructed PCM'
-      '                        interactively.\n'
-      '  --pcm + --xml       : Plots raw PCM, Haptics XML, & reconstructed'
+      'Visualize PCM and XML data and save the plot to a file.\n\n'
+      'Plots are rendered headlessly and saved based on provided arguments:\n'
+      '  --pcm only          : Plots the raw PCM data.\n'
+      '  --xml only          : Plots Haptics XML & reconstructed PCM.\n'
+      '  --pcm + --xml       : Plots raw PCM, Haptics XML, & reconstructed\n'
       '                        PCM.\n'
-      '  ... + --output FILE : Saves the plot to the specified file (e.g.,'
-      '                        .png, .pdf, .jpg) instead of opening an'
-      '                        interactive window.\n'
   )
   parser = subparsers.add_parser(
       'visualize',
@@ -180,7 +176,10 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
   parser.add_argument('--pcm', type=str, help='Path to raw PCM file (wav/ogg).')
   parser.add_argument('--xml', type=str, help='Path to XML file.')
   parser.add_argument(
-      '--output', type=str, help='Path to save the plot (optional).'
+      '--output',
+      type=str,
+      required=True,
+      help='Path to save the plot (e.g., .png, .pdf, .jpg).',
   )
   parser.add_argument(
       '--sample_rate',
@@ -203,20 +202,12 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
 
 def run(args: argparse.Namespace) -> None:
   """Executes the visualizer logic."""
-  if args.output:
-    try:
-      import matplotlib
+  try:
+    import matplotlib
 
-      matplotlib.use('Agg')
-    except ImportError:
-      pass
-  else:
-    try:
-      import matplotlib
-
-      matplotlib.use('QtAgg')
-    except ImportError:
-      pass
+    matplotlib.use('Agg')
+  except ImportError:
+    pass
 
   import matplotlib.pyplot as plt
 
@@ -427,16 +418,9 @@ def run(args: argparse.Namespace) -> None:
   # Ensure y-axis labels are aligned across plots
   fig.align_ylabels(axes)
 
-  if args.output:
-    plt.savefig(args.output)
-    print(f'Plot saved to {args.output}')
-    plt.close(fig)
-    plt.close('all')
-  else:
-    try:
-      plt.show()
-      plt.close('all')
-    except Exception as e:
-      print(f'Could not show plot: {e}. Use --output to save to a file.')
+  plt.savefig(args.output)
+  print(f'Plot saved to {args.output}')
+  plt.close(fig)
+  plt.close('all')
 
 
