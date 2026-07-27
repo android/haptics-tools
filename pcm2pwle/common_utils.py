@@ -382,7 +382,9 @@ def _add_pwle_event(
 
   if pwle_type == 'advanced_pwle':
     envelope = ET.SubElement(event, 'advancedEnvelope')
-    envelope.set('initialFrequency', str(float(points[0].frequency)))
+    # Filtering introduces artifacts to the first point.
+    # Use the second point gives a better initial frequency estimation.
+    envelope.set('initialFrequency', str(float(points[1].frequency)))
     for p in points[1:]:
       ET.SubElement(
           envelope,
@@ -393,7 +395,9 @@ def _add_pwle_event(
       )
   elif pwle_type == 'basic_pwle':
     envelope = ET.SubElement(event, 'basicEnvelope')
-    envelope.set('initialSharpness', str(float(points[0].sharpness)))
+    # Filtering introduces artifacts to the first point.
+    # Use the second point gives a better initial sharpness estimation.
+    envelope.set('initialSharpness', str(float(points[1].sharpness)))
     for p in points[1:]:
       ET.SubElement(
           envelope,

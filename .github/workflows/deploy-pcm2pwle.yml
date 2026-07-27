@@ -39,7 +39,9 @@ jobs:
         cache: 'pip'
 
     - name: Install Dependencies
-      run: pip install -r requirements.txt
+      run: |
+        pip install -r requirements.txt
+        pip install pyinstaller>=5.0.0
 
     - name: Run PyInstaller
       run: pyinstaller pcm2pwle.spec

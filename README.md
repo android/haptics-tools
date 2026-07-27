@@ -1,194 +1,126 @@
-# PCM to PWLE Conversion Tool
+# PCM to PWLE Haptics Toolkit
 
 [![Apache License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-### Downloads
-You can download the latest pre-compiled executables for your platform from the [Releases](https://github.com/android/haptics-tools/releases/latest) page:
+A toolkit for converting raw PCM haptic effects into Android's PWLE and preset
+based haptics format, and visualizing the conversion results.
+
+## Background
+
+**PCM ([Pulse-Code Modulation](https://en.wikipedia.org/wiki/Pulse-code_modulation))**
+haptic effects is a low-level digital representation of a haptic waveform that
+specifies the exact value of every sample for the haptic module input signal.
+PCM effects are highly dependent on specific hardware and are difficult to port
+across different devices.
+
+**PWLE ([Piecewise-Linear Envelope](https://source.android.com/docs/core/interaction/haptics/haptics-pwle))**
+describes the envelope of a vibration using a series of abstract control points.
+Each point specifies a target amplitude/intensity and frequency/sharpness at a
+particular point in time. The device's Haptics HAL uses these control points to
+generate a waveform optimized for its specific hardware capabilities.
+
+**Preset (formerly known as short primitive)** is a short, precisely damped
+physical impulses. They are pre-compiled, hardware-optimized haptic effect
+stored directly in the haptic chip's firmware.
+
+This toolkit converts arbitrary PCM haptic effects into the PWLE + preset based
+format while minimizing perception distortion. It helps designers automatically
+convert hardware-specific PCM data into a portable format.
+
+## Downloads
+
+You can download the latest pre-compiled executables for your platform from the
+[Releases](https://github.com/android/haptics-tools/releases/latest) page:
 
 | Platform | Download |
 | :--- | :--- |
-| **Linux** | [Download for Linux](https://github.com/android/haptics-tools/releases/latest/download/pcm_to_pwle-ubuntu-latest) |
-| **Windows** | [Download for Windows](https://github.com/android/haptics-tools/releases/latest/download/pcm_to_pwle-windows-latest.exe) |
-| **macOS** | [Download for macOS](https://github.com/android/haptics-tools/releases/latest/download/pcm_to_pwle-macos-latest) |
+| **Linux** | [Download for Linux](https://github.com/android/haptics-tools/releases/latest/download/pcm2pwle-ubuntu-latest.tar.gz) |
+| **Windows** | [Download for Windows](https://github.com/android/haptics-tools/releases/latest/download/pcm2pwle-windows-latest.zip) |
+| **macOS** | [Download for macOS](https://github.com/android/haptics-tools/releases/latest/download/pcm2pwle-macos-latest.tar.gz) |
 
-### Background
+### Installation & Setup
 
-PCM (Pulse-Code Modulation) is a low-level digital representation haptic
-waveform format that specifies the amplitude of the vibration at a given
-sampling rate. The PCM haptic effects are highly dependent on specific hardware
-and are hard to be ported across different devices.
+1. **Extract the archive:** Download the file for your platform and
+   extract it. You will find the ready-to-use `pcm2pwle` (or `pcm2pwle.exe` on
+   Windows) executable inside.
+2. **Run the tool:** You can open your terminal and run it directly from that
+   folder.
 
-PWLE (Piecewise-Linear Envelope) describes the envelope of the vibration using a
-series of control points. Each control point specifies a target amplitude and
-frequency at a particular point in time. Haptics HAL then uses these control
-points to generate a waveform that is optimized for its specific hardware
-capabilities while still adhering to the designer's intent.
+---
 
-PWLE is a more abstract, concise and flexible format for defining haptics
-effects that is not tied to a specific type of hardware, and it will be an
-essential part of the standard Android haptics file format.
+## Usage
 
-The PCM to PWLE conversion tool converts arbitrary PCM haptic effects to PWLE
-based haptics format without introducing perception distortion. It helps
-designers auto convert PCM format to portable haptics format, achieving the
-goal: design once, play everywhere.
+The `pcm2pwle` tool provides two primary sub-commands: `convert` and
+`visualize`.
 
-### How to use the tool
+### 1. Converting PCM to Android Haptics Format
+Use the `convert` command to analyze a `.wav` or `.ogg` file and generate the
+output.
 
-Commandline examples for generating PWLE based haptics files:
+*   **WAV files**: Assumes haptic data is stored in the 1st channel if stereo.
+*   **OGG files**: Assumes haptic data is stored in the 2nd channel.
 
-```
-$ pcm_to_pwle wav_files/v-10-23-1-21.wav test_pwle1.json
-```
+#### Basic Examples
+```bash
+# Convert using the default Basic PWLE format
+$ ./pcm2pwle convert --pcm wav_files/effect.wav --output result_basic.xml
 
-```
-$ pcm_to_pwle --pwle_type=advanced_pwle ogg_files/bumps.ogg test_pwle2.json
+# Convert using the Advanced PWLE format
+$ ./pcm2pwle convert --pcm ogg_files/bumps.ogg --output result_advanced.xml \
+    --pwle_type advanced_pwle
 ```
 
-Add `--loglevel` if you want to dump and inspect internal logs:
+#### PWLE Types
 
-```
-$ pcm_to_pwle wav_files/v-10-28-7-36.wav test_pwle3.json --loglevel=INFO
-```
+*   `basic_pwle` (Default): Outputs control points as (`sharpness`,
+    `intensity`, `duration`). PCM amplitude is mapped to intensity. PCM
+    frequency is mapped to sharpness based on the `--freq_profile` of the device
+    that the PCM is designed for,.
+*   `advanced_pwle`: Outputs control points as (`frequency`, `amplitude`,
+    `duration`). PCM data is mapped directly.
 
-#### Input
-The input of the tool is a raw PCM. Currently, we only support
-[WAV](https://en.wikipedia.org/wiki/WAV) file (assuming haptics data stored in
-the 1st channel) and [OGG](https://en.wikipedia.org/wiki/Ogg) file (assuming the
-haptics data stored in the 2nd channel). The tool throws an error if the file
-extension is not `wav` or `ogg`.
+#### Advanced Tuning Flags
+You can tweak the conversion algorithm using various flags. Use
+`./pcm2pwle convert --help` to see all available options.
 
-#### Output
+*   `--freq_profile`: A tuple of minimum, resonant, and maximum frequencies of
+    the design device. Defaults to `50 136 174`. Used for `basic_pwle`
+    sharpness mapping.
+*   `--amp_ratio_threshold`: the amplitude threshold ratio used in preset
+    detection. Defaults to `0.05`.
 
-The output of the tool is a PWLE based json.
+### 2. Visualizing Haptics
+Use the `visualize` command to inspect raw PCM data, generated PWLE / presets
+and the reconstructed waveform.
 
-[BasicPWLE](https://developer.android.com/reference/android/os/VibrationEffect.BasicEnvelopeBuilder)'s
-control points are tuples of (`sharpness`, `intensity`, `duration`).
+#### Examples
+```bash
+# View raw PCM data only
+$ ./pcm2pwle visualize --pcm wav_files/effect.wav --output vis.png
 
-*   Different devices have different minimum frequency, maximum frequency, and
-    resonant frequency that affects the basic PWLE frequency value mapping.
-    Users can specify a frequency profile (`min_f`, `res_f`, `max_f`) via flags.
+# View converted PWLE / presets and how they reconstruct into a waveform
+$ ./pcm2pwle visualize --pwle result.xml --output vis.png
 
-*   PCM amplitude is normalized to [0, 1] and directly used as basic PWLE
-    intensity.
-
-[AdvancedPWLE](https://developer.android.com/reference/android/os/VibrationEffect.WaveformEnvelopeBuilder)'s
-control points are tuples of (`frequency`, `amplitude`, `duration`).
-
-*   PCM frequency is directly used. It's user's responsibility to set the right
-    frequency as the frequency may be outside of the supported frequency range
-    of the target device.
-
-*   Assume PCM amplitude is normalized to [0, 1] and directly mapped to
-    `amplitude` as normally designers treat PCM amplitude as intensity instead
-    of driving voltage during their designing.
-
-#### Basic Flags
-
-We expose the following flags for basic usage.
-
-*   `pwle_type` specifies whether to output BasicPWLE (when
-    `--pwle_type=basic_pwle`) or AdvancedPWLE (when
-    `--pwle_type=advanced_pwle`). Defaults to `basic_pwle`.
-
-*   `freq_profile` is a tuple of (`min_f`, `res_f`, `max_f`). Defaults to `(50,
-    136, 174)`, if the target device's frequency profile is unknown.
-
-### Beating detection
-
-*   Beat frequency in [`1 Hz`, `6 Hz`]: won’t be detected as beating (FFT is
-    smoothed for detection robustness), will be converted using the main
-    conversion path
-
-*   Beat frequency in [`6Hz`, `25 Hz` (1000 / (2 * min_duration))]: will be
-    detected as beating, and go though the beating conversion path.
-
-*   Beat frequency > `25 Hz` (1000 / (2 * min_duration)): will be rejected
-    together since it exceeds the min duration between points in PWLE
-    definition.
-
-### Primitive detection
-
-*   If a primitive is detected, its start and end will be calculated. PCM data
-    within the primitive’s time duration will be silenced before PWLE control
-    points extraction.
-
-*   The primitive insert time will be the start time of the detected primitive's
-    range. For detected primitives, `CLICK` primitive is called with scaling.
-
-**NOTE** Right now, the tool only supports the detection of primitives isolated
-from continuous waveforms. Basically primitives among silence periods. It
-currently does not support the detection of primitives overlapped with
-continuous waveforms.
-
-### Advanced Flags
-
-We expose the following flags for advanced users to tweak the algorithm's
-behavior:
-
-*   `error_threshold`, the error threshold for
-    [Ramer-Douglas-Peucker](https://en.wikipedia.org/wiki/Ramer%E2%80%93Douglas%E2%80%93Peucker_algorithm)
-    algorithm. Defaults to `0.01`.
-
-*   `pulse_to_neighbor_ratio`, the sensitivity threshold for detecting pulses. A
-    pulse is detected if its magnitude is `pulse_to_neighbor_ratio` times
-    greater than the minimum magnitude of its neighbors. Therefore, a larger
-    value makes the detection less sensitive (fewer points), while a smaller
-    value makes it more sensitive (more points). Defaults to `5`.
-
-*   `primitive_amp_ratio_threshold`, the amplitude threshold ratio used in
-    primitive detection. Defaults to `0.1`.
-
-*   `primitive_freq_threshold`, the frequency threshold used in primitive
-    detection. Defaults to `50`.
-
-*   `crop_s`, the number of seconds to crop from the beginning of the PCM data.
-
-### Bad cases and warnings
-
-The tool emits warning messages like below when encountered bad cases.
-
-```
-WARNING: max_time_shift 347.10813378320836 >  100
+# Compare the original PCM directly against the PWLE / presets reconstruction
+$ ./pcm2pwle visualize --pcm wav_files/effect.wav --pwle result.xml \
+    --output vis.png
 ```
 
-```
-WARNING: beating_freq 34.59012805078254 > 25.0
-```
+![image](docs/images/pcm_to_pwle_vis.png){width="600"}
 
-In such instances, the generated PWLE may not fit well with the original PCM,
-leaving it to the user's discretion whether to accept the resulting output.
+---
 
-In the following charts, the blue curve is the original PCM and the red curve is
-the fitted wave.
+## Unsupported Scenarios
+The tool will emit `WARNING` logs if it encounters waveforms that cannot be
+accurately represented in the PWLE format:
 
-#### Large distortion
-If any extracted control point of the waveform has a time shift larger than `100
-ms`. It is considered to be a large shape distortion, which means the shape of
-the waveform cannot be held in the converted PWLE. Typically, square or sawtooth
-carrier waveforms with low frequency have such distortions.
-
-| Sawtooth carrier waveform (freq < 50Hz) | Square carrier waveform (freq < 50Hz) |
-| :---: | :---: |
-| ![Sawtooth carrier waveform](docs/images/sawtooth.png){width="450"} | ![Square carrier waveform](docs/images/square.png){width="450"} |
-
-**Suggestions**:
-
-*   If sawtooth/square carrier waveform is used, switch carrier waveform to sine
-    wave.
-*   If it is an arbitrary waveform, consider increasing RDP's `error_threshold`.
-
-#### Low mean frequency
-
-The generated PWLE doesn't fit well when the mean frequency is lower than `25
-Hz`.
-
-![Mean frequency low](docs/images/low_mean_freq.png){width="500" style="margin-left: 20px;"}
-
-#### Beating effects
-
-[Beating effects](https://en.wikipedia.org/wiki/Beat_\(acoustics\)) doesn't fit
-well when the beat (modulation) frequency is larger than `(1000 / (2 *
-min_duration))`.
-
-![Beating effects](docs/images/beating_effects.png){width="500" style="margin-left: 20px;"}
+*   **Dense modulation**: If the PCM effect has an amplitude modulation too
+    dense, it will be rejected due to large temporal distortion; if the PCM
+    effect has a frequency modulation too dense, large modulation distortion may
+    occur, and the tool gives a warning.
+*   **Frequency Below Hardware Limits**: PCM effects with low frequencies
+    (< 25 Hz) are not recommended as input, as they generally fall below the
+    supported frequency range of standard actuator hardware.
+*   **High-Frequency Beating**: Beating effects where the modulation frequency
+    exceeds `1000 / (2 * `[`min_duration`](https://developer.android.com/reference/android/os/vibrator/VibratorEnvelopeEffectInfo#getMinControlPointDurationMillis())`)` does not
+    fit well by PWLE.

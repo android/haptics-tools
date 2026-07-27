@@ -18,7 +18,6 @@ import copy
 import logging
 
 import numpy as np
-import pandas as pd
 from scipy import signal
 
 from pcm2pwle import common_utils
@@ -80,9 +79,12 @@ def _calculate_freq_env(
 
   logging.info('rm_outliers: kept frequency range: 0 %s', upper_bound)
   freq_envelope_raw[freq_envelope_raw > upper_bound] = np.nan
-  freq_envelope_raw = pd.Series(freq_envelope_raw).interpolate().to_numpy(
-      copy=True
-  )
+  # Impute NaN values with linear interpolation.
+  valid_mask = ~np.isnan(freq_envelope_raw)
+  if valid_mask.any() and not valid_mask.all():
+    ts = np.arange(len(freq_envelope_raw))
+    freq_envelope_raw[~valid_mask] = np.interp(
+        ts[~valid_mask], ts[valid_mask], freq_envelope_raw[valid_mask])
   freq_envelope_raw[np.isnan(freq_envelope_raw)] = 0
 
   sos = signal.butter(

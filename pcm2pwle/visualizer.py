@@ -27,6 +27,8 @@ from pcm2pwle import common_utils
 TEXT_COLOR = '#333333'
 
 
+# TODO: Consolidate preset specs with converters in
+# third_party/android/haptics_tools/pwle/common/utils.py
 PRESET_SPECS = {
     'TICK': {
         'duration_ms': 5,
@@ -422,5 +424,3 @@ def run(args: argparse.Namespace) -> None:
   print(f'Plot saved to {args.output}')
   plt.close(fig)
   plt.close('all')
-
-
