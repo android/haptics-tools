@@ -106,7 +106,7 @@ $ ./pcm2pwle visualize --pcm wav_files/effect.wav --pwle result.xml \
     --output vis.png
 ```
 
-![image](docs/images/pcm_to_pwle_vis.png){width="600"}
+<img src="docs/images/pcm_to_pwle_vis.png" width="600" alt="image">
 
 ---
 
