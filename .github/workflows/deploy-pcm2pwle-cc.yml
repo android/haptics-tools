@@ -1,10 +1,13 @@
-name: Build and Deploy pcm2pwle Executable
+name: Build and Deploy pcm2pwle C++ Executable
 
 on:
   push:
     branches: [ main ]
     tags:
-      - 'pcm2pwle-v*' # Trigger on pcm2pwle version tags
+      - 'pcm2pwle-cc-v*'
+      - 'pcm2pwle-v*'
+  pull_request:
+    branches: [ main ]
 
 permissions:
   contents: write # Required to create the release and upload assets
@@ -37,12 +40,12 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libsndfile1-dev cmake
+        sudo apt-get install -y libsndfile1-dev cmake ninja-build
 
     - name: Install Dependencies (macOS)
       if: runner.os == 'macOS'
       run: |
-        brew install libsndfile cmake
+        brew install libsndfile cmake ninja
 
     - name: Install Dependencies (Windows)
       if: runner.os == 'Windows'
@@ -57,11 +60,28 @@ jobs:
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN"
         else
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
         fi
 
     - name: Build C++ Binary
       run: cmake --build build --config Release
+
+    - name: Report Binary Size
+      shell: bash
+      run: |
+        BIN_PATH="build/pcm2pwle${{ matrix.extension }}"
+        if [ "${{ matrix.platform }}" = "windows" ]; then
+          BIN_PATH="build/Release/pcm2pwle${{ matrix.extension }}"
+          if [ ! -f "$BIN_PATH" ]; then
+            BIN_PATH="build/pcm2pwle${{ matrix.extension }}"
+          fi
+        fi
+        echo "=== Native Binary Size ==="
+        ls -lh "$BIN_PATH"
+        if command -v size >/dev/null 2>&1; then
+          size "$BIN_PATH" || true
+        fi
+        echo "=========================="
 
     - name: Package Binary
       shell: bash
@@ -93,8 +113,7 @@ jobs:
     name: Create GitHub Release
     needs: build # Wait for all builds to complete
     runs-on: ubuntu-latest
-    # ONLY run this job if the trigger was a tag
-    if: startsWith(github.ref, 'refs/tags/pcm2pwle-v')
+    if: startsWith(github.ref, 'refs/tags/pcm2pwle')
     steps:
     - name: Download All Artifacts
       uses: actions/download-artifact@v8

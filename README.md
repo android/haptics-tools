@@ -25,7 +25,9 @@ stored directly in the haptic chip's firmware.
 
 This toolkit converts arbitrary PCM haptic effects into the PWLE + preset based
 format while minimizing perception distortion. It helps designers automatically
-convert hardware-specific PCM data into a portable format.
+convert hardware-specific PCM data into a portable format. For a detailed
+technical specification of the conversion algorithm, see the
+[PCM to PWLE Conversion Algorithm](docs/pcm_to_pwle_conversion_algorithm.md).
 
 ## Downloads
 
@@ -63,10 +65,10 @@ output.
 #### Basic Examples
 ```bash
 # Convert using the default Basic PWLE format
-$ ./pcm2pwle convert --pcm wav_files/effect.wav --output result_basic.xml
+$ ./pcm2pwle convert --pcm wav_files/effect.wav --output result_basic.json
 
 # Convert using the Advanced PWLE format
-$ ./pcm2pwle convert --pcm ogg_files/bumps.ogg --output result_advanced.xml \
+$ ./pcm2pwle convert --pcm ogg_files/bumps.ogg --output result_advanced.json \
     --pwle_type advanced_pwle
 ```
 
@@ -99,10 +101,10 @@ and the reconstructed waveform.
 $ ./pcm2pwle visualize --pcm wav_files/effect.wav --output vis.png
 
 # View converted PWLE / presets and how they reconstruct into a waveform
-$ ./pcm2pwle visualize --pwle result.xml --output vis.png
+$ ./pcm2pwle visualize --pwle result.json --output vis.png
 
 # Compare the original PCM directly against the PWLE / presets reconstruction
-$ ./pcm2pwle visualize --pcm wav_files/effect.wav --pwle result.xml \
+$ ./pcm2pwle visualize --pcm wav_files/effect.wav --pwle result.json \
     --output vis.png
 ```
 
