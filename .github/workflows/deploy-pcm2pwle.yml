@@ -2,7 +2,6 @@ name: Build and Deploy pcm2pwle Executable
 
 on:
   push:
-    branches: [ main ]
     tags:
       - 'pcm2pwle-v*' # Trigger on pcm2pwle version tags
 

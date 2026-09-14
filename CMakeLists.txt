@@ -90,6 +90,9 @@ target_link_libraries(pcm2pwle PRIVATE absl::strings absl::log absl::flat_hash_m
 if(TARGET SndFile::sndfile)
   target_link_libraries(pcm2pwle PRIVATE SndFile::sndfile)
 else()
+  if(SndFile_LIBRARY_DIRS)
+    target_link_directories(pcm2pwle PRIVATE ${SndFile_LIBRARY_DIRS})
+  endif()
   target_link_libraries(pcm2pwle PRIVATE ${SndFile_LIBRARIES})
 endif()
 

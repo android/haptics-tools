@@ -34,11 +34,9 @@ technical specification of the conversion algorithm, see the
 You can download the latest pre-compiled executables for your platform from the
 [Releases](https://github.com/android/haptics-tools/releases/latest) page:
 
-| Platform | Download |
-| :--- | :--- |
-| **Linux** | [Download for Linux](https://github.com/android/haptics-tools/releases/latest/download/pcm2pwle-ubuntu-latest.tar.gz) |
-| **Windows** | [Download for Windows](https://github.com/android/haptics-tools/releases/latest/download/pcm2pwle-windows-latest.zip) |
-| **macOS** | [Download for macOS](https://github.com/android/haptics-tools/releases/latest/download/pcm2pwle-macos-latest.tar.gz) |
+| **Linux** | [Download for Linux](https://github.com/android/haptics-tools/releases/latest/download/pcm2pwle-linux.tar.gz) |
+| **Windows** | [Download for Windows](https://github.com/android/haptics-tools/releases/latest/download/pcm2pwle-windows.zip) |
+| **macOS** | [Download for macOS](https://github.com/android/haptics-tools/releases/latest/download/pcm2pwle-macos.tar.gz) |
 
 ### Installation & Setup
 
