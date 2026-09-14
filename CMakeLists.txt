@@ -57,7 +57,7 @@ if(NOT absl_FOUND)
   FetchContent_Declare(
       abseil_cpp
       GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
-      GIT_TAG        20240116.2
+      GIT_TAG        20260817.0
   )
   set(ABSL_PROPAGATE_CXX_SETTINGS ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(abseil_cpp)
