@@ -101,7 +101,7 @@ std::vector<std::pair<int, int>> ZeroOutLowAmplitudeChunks(
     } else if (!isLow && inSilence) {
       inSilence = false;
       if (i - silenceStart >= minSamples) {
-        chunks.push_back({silenceStart, i});
+        chunks.push_back({silenceStart, static_cast<int>(i)});
       }
     }
   }
